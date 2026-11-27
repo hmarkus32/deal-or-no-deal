@@ -1,11 +1,26 @@
 'use strict';
 
 const DOND = (() => {
-  const FAMILY = Object.freeze([0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 70, 75, 80, 100]);
+  // Default board: the low column tops out at $20, so players have better odds of a bigger prize.
+  const FAMILY = Object.freeze([0.01, 0.25, 0.50, 1, 2, 3, 5, 7, 10, 12, 15, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 85, 100]);
+  // The original first-night default, kept as a built-in so it is one pick away.
+  const FAMILY_CLASSIC = Object.freeze([0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 70, 75, 80, 100]);
+  const BIG_SPENDER = Object.freeze([0.01, 1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 72, 75, 78, 80, 85, 88, 90, 94, 97, 100]);
+  const KIDS = Object.freeze([0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 1, 1.50, 2, 2.50, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20]);
+  const HIGH_ROLLER = Object.freeze([0.01, 1, 5, 10, 20, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 490, 500]);
   const CLASSIC = Object.freeze([0.01, 1, 5, 10, 25, 50, 75, 100, 200, 300, 400, 500, 750, 1000, 5000, 10000, 25000, 50000, 75000, 100000, 200000, 300000, 400000, 500000, 750000, 1000000]);
+  // Built-in presets, in picker order. The first is the default and none can be deleted.
+  const PRESETS = Object.freeze([
+    Object.freeze({name: 'Family $100', amounts: FAMILY}),
+    Object.freeze({name: 'Family $100 (Classic)', amounts: FAMILY_CLASSIC}),
+    Object.freeze({name: 'Big Spender $100', amounts: BIG_SPENDER}),
+    Object.freeze({name: 'Kids $20', amounts: KIDS}),
+    Object.freeze({name: 'High Roller $500', amounts: HIGH_ROLLER}),
+    Object.freeze({name: 'Classic TV', amounts: CLASSIC}),
+  ]);
   const TITLE = 'Deal or No Deal';
   const SCHEDULE = Object.freeze([6, 5, 4, 3, 2, 1, 1, 1, 1]);
-  const FACTORS = Object.freeze([0.30, 0.38, 0.47, 0.56, 0.66, 0.75, 0.84, 0.92, 0.98]);
+  const FACTORS = Object.freeze([0.48, 0.56, 0.64, 0.72, 0.80, 0.88, 0.95, 1.02, 1.08]);
 
   function defaultSettings() {
     return {title: TITLE, amounts: [...FAMILY], muted: false};
@@ -56,7 +71,9 @@ const DOND = (() => {
   /**
    * Each offer is the expected value of every unopened case (including yours),
    * multiplied by the round factor and a uniform jitter from 0.95 to 1.05.
-   * Round to a board-appropriate increment, then clamp to the live prize range.
+   * Factors run 0.48 → 1.08, so late offers can beat the average (a tempting banker).
+   * Round to a board-appropriate increment, then clamp to the live prize range,
+   * so the banker never offers more than the largest amount still in play.
    * rng supplies a uniform number in [0, 1); inject () => 0.5 for neutral jitter.
    */
   function bankerOffer(remaining, round, rng = random) {
@@ -109,6 +126,14 @@ const DOND = (() => {
     return {...game, offers: [...game.offers, offer], phase: 'call'};
   }
 
+  function answerCall(game) {
+    return game.phase === 'call' ? {...game, phase: 'line'} : game;
+  }
+
+  function hangUp(game) {
+    return game.phase === 'line' ? {...game, phase: 'offer'} : game;
+  }
+
   function showOffer(game) {
     return game.phase === 'call' ? {...game, phase: 'offer'} : game;
   }
@@ -145,9 +170,9 @@ const DOND = (() => {
     return dealRevealed || game.phase === 'otherReveal' ? {...game, phase: 'result'} : game;
   }
 
-  return {TITLE, FAMILY, CLASSIC, SCHEDULE, FACTORS, defaultSettings, validateAmounts, formatMoney,
+  return {TITLE, FAMILY, FAMILY_CLASSIC, BIG_SPENDER, KIDS, HIGH_ROLLER, CLASSIC, PRESETS, SCHEDULE, FACTORS, defaultSettings, validateAmounts, formatMoney,
     shuffle, roundNice, bankerOffer, newGame, remainingNumbers, revealedCaseNumbers, opensLeft, selectCase, finishReveal,
-    showOffer, decideOffer, finishSwap, revealOtherCase, showResult};
+    answerCall, hangUp, showOffer, decideOffer, finishSwap, revealOtherCase, showResult};
 })();
 
 if (typeof window !== 'undefined') window.DOND = DOND;

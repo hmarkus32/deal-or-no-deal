@@ -7,13 +7,23 @@
   <title>Deal or No Deal</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="game.css">
+  <script>
+    const query = new URLSearchParams(location.search);
+    if (query.get('role') === 'host') {
+      const phone = new URL('phone.html', location.href);
+      if (query.has('room')) phone.searchParams.set('room', query.get('room'));
+      location.replace(phone);
+    }
+  </script>
   <script defer src="game-logic.js"></script>
+  <script defer src="link.js"></script>
   <script defer src="host.js"></script>
 </head>
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span id="brand-name">Game Night</span></div>
     <div class="tools">
+      <span id="link-status" class="status-pill" role="status" hidden></span>
       <button id="sound" class="tool"><span class="sound-icon" aria-hidden="true">♪</span><span id="sound-label">Sound on</span></button>
       <button id="menu" class="tool" aria-label="Game menu" aria-haspopup="dialog"><span class="menu-icon" aria-hidden="true">•••</span></button>
     </div>
@@ -26,13 +36,8 @@
           <div class="board-tag"><i></i><span id="board-name"></span></div>
           <h1 id="game-title"></h1>
           <p class="intro">Pick a case. Hear the offer.<br>Take the deal or trust your luck.</p>
-          <div class="actions"><button class="gold" id="start">Start Game <span aria-hidden="true">→</span></button><button id="setup"><span aria-hidden="true">⚙︎</span> Setup</button></div>
+          <div class="actions"><button class="gold" id="start">Start Game <span aria-hidden="true">→</span></button><button id="setup"><span aria-hidden="true">⚙︎</span> Setup</button><button id="link-phone">Link host phone</button></div>
         </div>
-      </div>
-      <div class="stats">
-        <div><span class="stat-symbol" aria-hidden="true">▦</span><div><strong>26</strong><small>Briefcases</small></div></div>
-        <div><span class="stat-symbol" aria-hidden="true">☎︎</span><div><strong>9</strong><small>Banker offers</small></div></div>
-        <div><span class="stat-symbol" aria-hidden="true">♢</span><div><strong id="top-prize"></strong><small>Top prize</small></div></div>
       </div>
     </section>
     <section id="game-screen" class="screen" hidden>
@@ -67,6 +72,11 @@
   <dialog id="host-dialog" aria-labelledby="dialog-heading">
     <form method="dialog">
       <h2 id="dialog-heading"></h2><p id="dialog-copy" hidden></p>
+      <div id="link-panel" hidden>
+        <p>Room code</p><strong id="room-code"></strong>
+        <a id="host-url" target="_blank" rel="noopener"></a><p id="link-detail" role="status"></p>
+        <button id="new-code" type="button" hidden>New code</button>
+      </div>
       <label id="name-label" hidden>Preset name<input id="preset-name" maxlength="60" autocomplete="off"></label>
       <p id="name-error" role="status" hidden></p>
       <div id="dialog-actions" class="actions"></div>

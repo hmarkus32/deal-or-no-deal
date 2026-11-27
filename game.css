@@ -42,7 +42,7 @@ main { display: flex; }
 .hero { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; isolation: isolate; }
 .stage-art { position: absolute; z-index: -1; width: 65%; height: 96%; right: -3%; top: 2%; object-fit: contain; mask-image: linear-gradient(90deg,transparent 0%,#000 16%,#000 92%,transparent), linear-gradient(0deg,transparent,#000 12%,#000 86%,transparent); mask-composite: intersect; }
 .hero-copy { width: 42%; padding: 1vh 0; }
-.board-tag, .eyebrow, .stats small, #held small { text-transform: uppercase; font-size: var(--label); letter-spacing: .13em; font-weight: 750; }
+.board-tag, .eyebrow, #held small { text-transform: uppercase; font-size: var(--label); letter-spacing: .13em; font-weight: 750; }
 .board-tag { display: inline-flex; align-items: center; gap: 9px; color: #f6d699; border: 1px solid #f3c77649; padding: .42em .86em; border-radius: 99px; background: #342920; }
 .board-tag i { width: .48em; height: .48em; border-radius: 50%; background: var(--gold); }
 #game-title { font-size: clamp(48px, min(7.75vw, 12.5vh), 164px); font-weight: 950; line-height: .88; letter-spacing: -.06em; margin: .24em 0; overflow-wrap: anywhere; }
@@ -54,13 +54,6 @@ main { display: flex; }
 .hero .actions { margin-top: clamp(14px,3vh,36px); }
 .hero button { padding: .78em 1.4em; }
 .hero button span { margin: 0 .16em; }
-.stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); flex: none; padding: clamp(15px, 2.4vh, 35px) 0; border: 1px solid #e6bd7a36; border-radius: 16px; background: linear-gradient(100deg,#27212b,#201c27); }
-.stats > div { min-width:0; display:flex; justify-content:center; align-items:center; gap: 1.3vw; }
-.stats > div + div { border-left: 1px solid var(--line); }
-.stat-symbol { display:grid; place-items:center; width:1.7em; height:1.7em; border:1px solid #ebc17f39; border-radius:12px; background:#302a2d; color:var(--gold); font-family:Arial,sans-serif; font-size: clamp(22px,2.1vw,42px); }
-.stats strong,.stats small { display:block; }
-.stats strong { font-size: clamp(24px,2.5vw,52px); line-height:1.1; letter-spacing:-.05em; }
-.stats small { margin-top: .3em; color: var(--muted); letter-spacing:.08em; }
 #game-screen { display: grid; grid-template-columns: minmax(215px,.72fr) minmax(0,2fr); gap: 2vw; padding: clamp(12px,3vh,36px) clamp(16px,3vw,64px); }
 .money-panel,.play-panel,.setup-controls,fieldset { border: 1px solid var(--line); background: #1a1721dc; border-radius: 18px; }
 .money-panel,.play-panel { min-height:0; min-width:0; display:flex; flex-direction:column; padding: clamp(12px,1.5vw,32px); }
@@ -191,9 +184,6 @@ dialog p { color:var(--muted); font-size:clamp(16px,1.2vw,22px); }
   .intro { font-size:17px; line-height:1.28; }
   .hero .actions { margin-top:1.6vh; }
   .hero button { padding:.62em 1.3em; }
-  .stats { padding:13px 0; border-radius:12px; }
-  .stat-symbol { display:none; }
-  .stats small { letter-spacing:.035em; }
   #game-screen { grid-template: minmax(0,1.35fr) minmax(0,1fr) / 1fr; gap:8px; padding:8px; }
   .play-panel { grid-row:1; }
   .play-panel,.money-panel { padding:9px; border-radius:12px; }
@@ -220,3 +210,64 @@ dialog p { color:var(--muted); font-size:clamp(16px,1.2vw,22px); }
   *,*::before,*::after { animation:none !important; transition:none !important; }
   #confetti { display:none; }
 }
+
+/* Keep the border visible when reduced motion turns animations off. */
+body.banker-call { background:radial-gradient(ellipse at 70% 28%,#a32432,#550e20 58%,#280911); }
+.banker-call .play-panel { background:radial-gradient(ellipse at 50% 25%,#732132,#2c1420 80%); }
+.banker-call::after {
+  content:""; position:fixed; inset:0; z-index:10; pointer-events:none;
+  box-shadow:inset 0 0 0 clamp(10px,1.6vmin,24px) #ff4251,inset 0 0 6vmin 1vmin #ff233dcc;
+  animation:banker-pulse .45s ease-in-out infinite;
+}
+@keyframes banker-pulse { 0%,100% { opacity:.52; } 50% { opacity:1; } }
+.on-line-icon { font-size:clamp(56px,10vmin,135px); color:var(--gold); }
+.offer .amount { --reveal-gap:12px; --case-width:15vmin; animation:prize-rise .64s both; }
+.status-pill { padding:.45em .8em; border-radius:99px; background:#443522; color:#ffe1a1; font-size:var(--label); font-weight:750; text-align:center; }
+.status-pill[data-state="linked"] { color:#c3f7d0; background:#1a4430; }
+.status-pill:is([data-state="lost"],[data-state="collision"],[data-state="reconnecting"],[data-state="replaced"]) { color:#ffcbca; background:#54272f; }
+#link-panel { display:grid; gap:12px; }
+#room-code { color:var(--gold); font-size:clamp(56px,11vmin,100px); line-height:1; letter-spacing:.08em; }
+#host-url { color:var(--gold); overflow-wrap:anywhere; font-size:clamp(16px,1.35vw,24px); }
+#new-code { justify-self:start; }
+@media (max-width:650px) {
+  .has-room .topbar { gap:6px; padding-inline:9px; }
+  .has-room .brand { flex:1; }
+  .has-room .brand-mark { display:none; }
+  .has-room #brand-name { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+  .has-room .tools { gap:5px; }
+  .has-room .tool { padding-inline:10px; }
+}
+
+.phone-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px; border-bottom:1px solid var(--line); }
+.phone-header .status-pill { flex:none; }
+#phone-title { overflow-wrap:anywhere; }
+.phone-main { width:min(100%,680px); margin:auto; padding:clamp(14px,3vmin,26px); }
+#join-room, #remote { width:100%; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:14px; }
+#join-room input { text-transform:uppercase; font-weight:800; font-size:32px; letter-spacing:.12em; }
+#join-error { color:#ffb4a2; }
+#remote { text-align:center; }
+#remote h1,#join-room h1 { font-size:clamp(28px,8vmin,54px); letter-spacing:-.045em; line-height:1.08; }
+#phone-round { margin:0; }
+#phone-controls { display:flex; flex-direction:column; justify-content:center; align-items:stretch; gap:clamp(12px,2.5dvh,24px); }
+#phone-controls :where(button:not(.case-button)), #join-room button { font-size:clamp(22px,6vmin,46px); }
+#phone-controls .case-grid { grid-template:repeat(6,minmax(44px,1fr)) / repeat(5,minmax(44px,1fr)); gap:6px; }
+#phone-controls .case-button { height:clamp(44px,8dvh,80px); }
+#phone-controls .case-face { width:92%; height:74%; }
+#phone-controls .answer, #phone-controls .hang-up, #phone-controls[data-phase="offer"] button {
+  min-height:25dvh; font-size:clamp(38px,11vmin,68px); font-weight:850; border-radius:22px;
+}
+#phone-controls .answer { background:#197047; color:white; }
+#phone-controls .hang-up { background:#a52338; color:white; }
+#phone-controls .call-timer { font-variant-numeric:tabular-nums; font-size:24px; }
+#phone-controls .phone { font-size:clamp(80px,24vmin,150px); }
+
+/* Single-device banker call: Answer and Hang up are as big as DEAL / NO DEAL. */
+.call-scene .actions { width:100%; }
+.call-scene button { width:min(100%,720px); min-height:16vh; font-size:clamp(30px,5.5vmin,84px); font-weight:850; border-radius:22px; padding:.3em; color:#fff; }
+.answer-scene button { background:#197047; border-color:#5fd99a; }
+.hangup-scene button { background:#a52338; border-color:#ff8b98; }
+@media (max-width:650px) {
+  .call-scene button { min-height:clamp(72px,12vh,110px); font-size:clamp(28px,8vw,40px); }
+}
+/* Host phone: DEAL / NO DEAL fill most of the screen so they are easy to hold up. */
+#phone-controls[data-phase="offer"] button { min-height:min(35dvh,calc((100dvh - 240px) / 2)); }
