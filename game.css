@@ -92,36 +92,34 @@ main { display: flex; }
   --reveal-gap:clamp(10px,2vmin,24px);
   gap:var(--reveal-gap);
 }
-.reveal-case { position:relative; flex:none; width:var(--case-width); aspect-ratio:1.65; }
-.reveal-case .case-face {
-  width:100%; height:100%; max-width:none; max-height:none; aspect-ratio:auto;
-  align-items:end; padding-bottom:2%; font-size:clamp(22px,4vmin,60px); line-height:1;
+.sealed-final .big-case,.reveal-case {
+  width:clamp(120px,24vmin,320px); aspect-ratio:1.34; height:auto; padding:0;
 }
-/* The lining and numbered front stay put while the lid pivots at the back edge. */
-.reveal-case .case-face::before {
-  inset:4% 4% auto; width:auto; height:59%; border:2px solid #786650; border-radius:9%;
-  background:radial-gradient(ellipse at 50% 85%,#675043,#241e27 76%);
-  box-shadow:inset 0 5px 10px #100c12;
+.sealed-final .big-case .case-face,.reveal-case .case-face {
+  width:100%; height:100%; max-width:none; max-height:none; font-size:clamp(28px,5vmin,80px);
 }
-.reveal-case .case-face::after { top:70%; }
+.sealed-final .big-case { margin-block:3vmin; }
+.reveal-case { position:relative; flex:none; perspective:800px; }
+/* The numbered silver board tile is the outside of the lid. Its padded
+   underside becomes visible as the front edge lifts toward the audience. */
+.case-lining { position:absolute; inset:0; }
+.case-lining .case-face { align-items:end; line-height:1; padding-bottom:2%; font-size:clamp(20px,3.5vmin,54px); }
+.case-lining .case-face::after { top:80%; }
+.case-lining .case-face::before,.case-lid::after {
+  position:absolute; inset:0; border:clamp(4px,.7vmin,10px) ridge #c6bfc2; border-radius:12%;
+  background:radial-gradient(ellipse at 50% 80%,#665448,#241e27 76%);
+  box-shadow:inset 0 5px 12px #100c12;
+}
+.case-lining .case-face::before { inset:3% 3% 26%; width:auto; height:auto; }
 .case-lid {
-  position:absolute; z-index:2; inset:0 0 auto; height:66%; border:2px solid #bfb6bf; border-radius:10%;
-  background:repeating-linear-gradient(0deg,transparent 0 8px,#fff2 9px 10px),linear-gradient(115deg,#968d98,#e7dfe2 35%,#aca2ae);
-  box-shadow:inset 0 0 0 2px #fff5,0 2px 4px #0008;
-  transform-origin:50% 5%; transform:perspective(650px) rotateX(-98deg);
-  animation:open-lid .8s cubic-bezier(.4,0,.2,1) both;
+  position:absolute; inset:0; transform-origin:50% 0; transform-style:preserve-3d;
+  transform:rotateX(108deg); animation:open-lid .8s cubic-bezier(.4,0,.2,1) both;
 }
-.gold-case .case-lid {
-  border-color:#ebc988;
-  background:repeating-linear-gradient(0deg,transparent 0 8px,#fffa 9px,#fff0 10px),linear-gradient(115deg,#af8146,#ffe0a2 35%,#c59b59);
-}
-.case-lid::before {
-  content:""; position:absolute; bottom:100%; left:32%; width:36%; height:22%; box-sizing:border-box;
-  border:3px solid #d1c3b5; border-bottom:0; border-radius:7px 7px 0 0;
-}
-@keyframes open-lid { 0%,12% { transform:perspective(650px) rotateX(0deg); } }
+.case-lid .case-face,.case-lid::after { backface-visibility:hidden; }
+.case-lid::after { content:""; transform:rotateX(180deg); }
+@keyframes open-lid { 0%,10% { transform:rotateX(0deg); } to { transform:rotateX(108deg); } }
 .amount { max-width:100%; font-size:clamp(48px,9vmin,140px); line-height:1.05; letter-spacing:-.065em; font-weight:900; color:var(--gold); overflow-wrap:anywhere; }
-.revealing .amount { position:relative; z-index:1; animation:prize-rise .64s .26s both; }
+.revealing .amount { position:relative; z-index:1; margin-bottom:calc(var(--case-width) * .32); animation:prize-rise .64s .26s both; }
 @keyframes prize-rise {
   from { transform:translateY(calc(50% + var(--reveal-gap) + var(--case-width) * .2)) scale(.35); opacity:0; }
   35% { opacity:1; }
@@ -291,13 +289,6 @@ dialog:has(#link-panel:not([hidden])) form { gap:14px; }
 }
 /* Host phone: DEAL / NO DEAL fill most of the screen so they are easy to hold up. */
 #phone-controls[data-phase="offer"] button { min-height:min(35dvh,calc((100dvh - 240px) / 2)); }
-
-/* Sealed case: pulse the closed briefcase until the host opens it. */
-body.case-hold .money-panel { opacity:.4; }
-.scene.holding .reveal-case { width:clamp(150px,32vmin,380px); aspect-ratio:1.34; }
-.hold-case { animation:hold-pulse 1.15s ease-in-out infinite; filter:drop-shadow(0 0 28px #f7cd7680); }
-.hold-case .case-lid { transform:perspective(650px) rotateX(0deg); animation:none; }
-@keyframes hold-pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.05); } }
 
 /* DEAL / NO DEAL stage stingers. */
 #sting {

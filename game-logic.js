@@ -98,8 +98,8 @@ const DOND = (() => {
   // The money board follows what the room has seen, including the final cases
   // that are outside the round schedule. Wait for the prize to rise before marking it.
   function revealedCaseNumbers(game, revealComplete = false) {
-    if (game.phase === 'hold' || (game.phase === 'reveal' && !revealComplete)) return game.opened.slice(0, -1);
-    if (!game.result || (game.phase === 'finalReveal' && !revealComplete)) return game.opened;
+    if (game.phase === 'reveal' && !revealComplete) return game.opened.slice(0, -1);
+    if (!game.result || game.phase === 'finalSealed' || (game.phase === 'finalReveal' && !revealComplete)) return game.opened;
     const revealed = [...game.opened, game.chosen];
     if (game.result.other && (game.phase === 'result' || (game.phase === 'otherReveal' && revealComplete))) {
       revealed.push(game.result.other);
@@ -115,11 +115,7 @@ const DOND = (() => {
     if (!Number.isInteger(number) || number < 1 || number > 26) return game;
     if (game.phase === 'pick') return {...game, chosen: number, phase: 'open'};
     if (game.phase !== 'open' || number === game.chosen || game.opened.includes(number)) return game;
-    return {...game, opened: [...game.opened, number], phase: 'hold'};
-  }
-
-  function openCase(game) {
-    return game.phase === 'hold' ? {...game, phase: 'reveal'} : game;
+    return {...game, opened: [...game.opened, number], phase: 'reveal'};
   }
 
   function finishReveal(game, rng = random) {
@@ -150,7 +146,7 @@ const DOND = (() => {
       {...game, offers, round: game.round + 1, phase: 'open'};
     const caseValue = game.cases[game.chosen - 1];
     const difference = Number((offer.amount - caseValue).toFixed(2));
-    return {...game, offers, phase: 'finalReveal', result: {type: 'deal', winnings: offer.amount,
+    return {...game, offers, phase: 'finalSealed', result: {type: 'deal', winnings: offer.amount,
       caseValue, difference, good: difference >= 0}};
   }
 
@@ -160,8 +156,12 @@ const DOND = (() => {
     const chosen = swap ? last : game.chosen;
     const other = swap ? game.chosen : last;
     const winnings = game.cases[chosen - 1];
-    return {...game, chosen, phase: 'finalReveal', result: {type: swap ? 'swap' : 'keep', winnings,
+    return {...game, chosen, phase: 'finalSealed', result: {type: swap ? 'swap' : 'keep', winnings,
       other, otherAmount: game.cases[other - 1], good: winnings >= game.amounts[13]}};
+  }
+
+  function openMyCase(game) {
+    return game.phase === 'finalSealed' ? {...game, phase: 'finalReveal'} : game;
   }
 
   function revealOtherCase(game) {
@@ -175,8 +175,8 @@ const DOND = (() => {
   }
 
   return {TITLE, FAMILY, FAMILY_CLASSIC, BIG_SPENDER, KIDS, HIGH_ROLLER, CLASSIC, PRESETS, SCHEDULE, FACTORS, defaultSettings, validateAmounts, formatMoney,
-    shuffle, roundNice, bankerOffer, newGame, remainingNumbers, revealedCaseNumbers, opensLeft, selectCase, openCase, finishReveal,
-    answerCall, hangUp, showOffer, decideOffer, finishSwap, revealOtherCase, showResult};
+    shuffle, roundNice, bankerOffer, newGame, remainingNumbers, revealedCaseNumbers, opensLeft, selectCase, finishReveal,
+    answerCall, hangUp, showOffer, decideOffer, finishSwap, openMyCase, revealOtherCase, showResult};
 })();
 
 if (typeof window !== 'undefined') window.DOND = DOND;

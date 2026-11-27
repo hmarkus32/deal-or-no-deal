@@ -13,6 +13,11 @@
     return node;
   };
 
+  function vibrate(pattern) {
+    // A phone refreshed during a call has no activation in its new document.
+    if (navigator.userActivation?.hasBeenActive === false) return;
+    try { navigator.vibrate?.(pattern); } catch { /* Optional call cue. */ }
+  }
   function command(label, action, style = '', n) {
     const btn = el('button', label, style);
     const {phase, rev} = state;
@@ -46,8 +51,8 @@
       case 'open':
         controls.append(cases());
         break;
-      case 'hold':
-        controls.append(command('Open case', 'openCase', 'open-case'));
+      case 'finalSealed':
+        controls.append(command('Open my case', 'openMyCase', 'open-case'));
         break;
       case 'reveal':
         controls.append(command('Continue', 'continue', 'gold'));
@@ -102,7 +107,7 @@
       $('phone-status').textContent = linked ? 'Linked · ' + room :
         status === 'reconnecting' ? 'Reconnecting…' : status === 'replaced' ? 'Disconnected' : 'Connecting…';
       if (linked) return;
-      if (state?.phase === 'call') navigator.vibrate?.(0);
+      if (state?.phase === 'call') vibrate(0);
       state = null;
       clearInterval(timer);
       document.body.classList.remove('banker-call');
@@ -123,8 +128,8 @@
     connection = L.transport({role:'phone', code, onStatus});
     connection.onMessage(next => {
       if (!linked || next?.type !== 'snapshot' || !Number.isSafeInteger(next.rev) || (state && next.rev <= state.rev)) return;
-      if (state?.phase !== 'call' && next.phase === 'call') navigator.vibrate?.([200, 100, 200]);
-      else if (state?.phase === 'call' && next.phase !== 'call') navigator.vibrate?.(0);
+      if (state?.phase !== 'call' && next.phase === 'call') vibrate([200, 100, 200]);
+      else if (state?.phase === 'call' && next.phase !== 'call') vibrate(0);
       state = next;
       render();
     });

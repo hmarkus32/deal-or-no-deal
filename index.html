@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#121018">
   <title>Deal or No Deal</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="game.css">
+  <link rel="stylesheet" href="game.css?v=3">
   <script>
     const query = new URLSearchParams(location.search);
     if (query.get('role') === 'host') {
@@ -15,10 +15,11 @@
       location.replace(phone);
     }
   </script>
-  <script defer src="game-logic.js"></script>
-  <script defer src="link.js"></script>
+  <script defer src="game-logic.js?v=3"></script>
+  <script defer src="link.js?v=3"></script>
   <script defer src="vendor/qrcode-generator.min.js"></script>
-  <script defer src="host.js"></script>
+  <script defer src="sound.js"></script>
+  <script defer src="host.js?v=3"></script>
 </head>
 <body>
   <header class="topbar">

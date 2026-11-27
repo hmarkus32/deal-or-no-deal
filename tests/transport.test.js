@@ -122,3 +122,31 @@ test('phone wakes and retries automatically without starting parallel peers or r
   assert.equal(peers.length, 3);
   assert.equal(statuses.at(-1)[0], 'replaced');
 });
+
+test('a failed snapshot send releases the dead channel and a replacement receives current state', async t => {
+  const {transport, peers:[peer], statuses} = await harness(t);
+  let rev = 1;
+  const publish = L.serve(transport, () => ({rev}), () => false);
+  peer.emit('open');
+  const old = new Channel();
+  peer.emit('connection', old); old.accept();
+  old.send = () => { throw new Error('Data channel closed'); };
+  rev++;
+  publish();
+  assert.equal(statuses.at(-1)[0], 'lost');
+  const current = new Channel();
+  peer.emit('connection', current); current.accept();
+  assert.deepEqual(current.sent, [{rev:2}]);
+});
+
+test('refresh can replace a channel that closes while the stage sends its retirement notice', async t => {
+  const {transport, peers:[peer], statuses} = await harness(t);
+  L.serve(transport, () => 'current snapshot', () => false);
+  peer.emit('open');
+  const old = new Channel(), current = new Channel();
+  peer.emit('connection', old); old.accept();
+  old.send = () => { throw new Error('Data channel closing'); };
+  peer.emit('connection', current); current.accept();
+  assert.equal(statuses.at(-1)[0], 'linked');
+  assert.deepEqual(current.sent, ['current snapshot']);
+});
