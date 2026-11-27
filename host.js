@@ -249,7 +249,6 @@
     const preset = allPresets().find(p => sameBoard(p.amounts, settings.amounts));
     const name = preset?.name || 'Custom';
     $('board-name').textContent = /board$/i.test(name) ? name : name + ' board';
-    $('top-prize').textContent = money(settings.amounts[25]);
   }
   function render() {
     clearTimeout(timer);

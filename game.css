@@ -42,7 +42,7 @@ main { display: flex; }
 .hero { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; isolation: isolate; }
 .stage-art { position: absolute; z-index: -1; width: 65%; height: 96%; right: -3%; top: 2%; object-fit: contain; mask-image: linear-gradient(90deg,transparent 0%,#000 16%,#000 92%,transparent), linear-gradient(0deg,transparent,#000 12%,#000 86%,transparent); mask-composite: intersect; }
 .hero-copy { width: 42%; padding: 1vh 0; }
-.board-tag, .eyebrow, .stats small, #held small { text-transform: uppercase; font-size: var(--label); letter-spacing: .13em; font-weight: 750; }
+.board-tag, .eyebrow, #held small { text-transform: uppercase; font-size: var(--label); letter-spacing: .13em; font-weight: 750; }
 .board-tag { display: inline-flex; align-items: center; gap: 9px; color: #f6d699; border: 1px solid #f3c77649; padding: .42em .86em; border-radius: 99px; background: #342920; }
 .board-tag i { width: .48em; height: .48em; border-radius: 50%; background: var(--gold); }
 #game-title { font-size: clamp(48px, min(7.75vw, 12.5vh), 164px); font-weight: 950; line-height: .88; letter-spacing: -.06em; margin: .24em 0; overflow-wrap: anywhere; }
@@ -54,13 +54,6 @@ main { display: flex; }
 .hero .actions { margin-top: clamp(14px,3vh,36px); }
 .hero button { padding: .78em 1.4em; }
 .hero button span { margin: 0 .16em; }
-.stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); flex: none; padding: clamp(15px, 2.4vh, 35px) 0; border: 1px solid #e6bd7a36; border-radius: 16px; background: linear-gradient(100deg,#27212b,#201c27); }
-.stats > div { min-width:0; display:flex; justify-content:center; align-items:center; gap: 1.3vw; }
-.stats > div + div { border-left: 1px solid var(--line); }
-.stat-symbol { display:grid; place-items:center; width:1.7em; height:1.7em; border:1px solid #ebc17f39; border-radius:12px; background:#302a2d; color:var(--gold); font-family:Arial,sans-serif; font-size: clamp(22px,2.1vw,42px); }
-.stats strong,.stats small { display:block; }
-.stats strong { font-size: clamp(24px,2.5vw,52px); line-height:1.1; letter-spacing:-.05em; }
-.stats small { margin-top: .3em; color: var(--muted); letter-spacing:.08em; }
 #game-screen { display: grid; grid-template-columns: minmax(215px,.72fr) minmax(0,2fr); gap: 2vw; padding: clamp(12px,3vh,36px) clamp(16px,3vw,64px); }
 .money-panel,.play-panel,.setup-controls,fieldset { border: 1px solid var(--line); background: #1a1721dc; border-radius: 18px; }
 .money-panel,.play-panel { min-height:0; min-width:0; display:flex; flex-direction:column; padding: clamp(12px,1.5vw,32px); }
@@ -191,9 +184,6 @@ dialog p { color:var(--muted); font-size:clamp(16px,1.2vw,22px); }
   .intro { font-size:17px; line-height:1.28; }
   .hero .actions { margin-top:1.6vh; }
   .hero button { padding:.62em 1.3em; }
-  .stats { padding:13px 0; border-radius:12px; }
-  .stat-symbol { display:none; }
-  .stats small { letter-spacing:.035em; }
   #game-screen { grid-template: minmax(0,1.35fr) minmax(0,1fr) / 1fr; gap:8px; padding:8px; }
   .play-panel { grid-row:1; }
   .play-panel,.money-panel { padding:9px; border-radius:12px; }
