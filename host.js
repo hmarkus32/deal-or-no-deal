@@ -2,6 +2,7 @@
 
 (() => {
   const G = window.DOND;
+  const L = window.DONDLink;
   const $ = id => document.getElementById(id);
   const money = G.formatMoney;
   const keys = {state: 'dond-state-v1', settings: 'dond-settings-v1', presets: 'dond-presets-v1'};
@@ -30,6 +31,78 @@
   const sameBoard = (a, b) => a.length === b.length && a.every((n, i) => n === b[i]);
   const active = () => game && game.phase !== 'result';
 
+  const roomKey = 'dond-room-v1';
+  const revKey = 'dond-link-rev-v1';
+  const lineKey = 'dond-line-start-v1';
+  let room = L.normalizeCode(read(roomKey, null));
+  let rev = read(revKey, 0);
+  let lineSince = game?.phase === 'line' ? read(lineKey, Date.now()) : null;
+  let connection, publish, linked = false;
+  let status = 'waiting', detail = '';
+
+  function updateLinkUI() {
+    const pill = $('link-status');
+    pill.hidden = !room;
+    document.body.classList.toggle('has-room', !!room);
+    if (!room) return;
+    pill.dataset.state = status;
+    pill.textContent = linked ? 'Phone linked · ' + room : status === 'waiting' ? 'Waiting for phone · ' + room : 'Link lost · play on stage';
+    pill.title = detail || pill.textContent;
+    $('room-code').textContent = room;
+    const url = new URL('phone.html', location.href);
+    url.searchParams.set('room', room);
+    $('host-url').textContent = url.href;
+    $('host-url').href = url.href;
+    $('link-detail').textContent = detail || (linked ? 'Phone linked.' : 'Open the host URL on your phone to join.');
+    $('new-code').hidden = status !== 'collision';
+  }
+  function register(fresh) {
+    connection?.stop();
+    linked = false;
+    if (fresh) room = L.roomCode();
+    write(roomKey, room);
+    write(revKey, rev);
+    status = 'waiting';
+    detail = 'Registering room…';
+    updateLinkUI();
+    connection = L.transport({role:'stage', code:room, fresh,
+      onCode(code) { room = code; write(roomKey, room); updateLinkUI(); },
+      onStatus(next, reason = '') {
+        const wasLinked = linked;
+        status = next; detail = reason;
+        linked = next === 'linked';
+        updateLinkUI();
+        if (wasLinked !== linked && ['call','line','offer','swap'].includes(game?.phase)) renderGame();
+      }
+    });
+    publish = L.serve(connection,
+      () => L.snapshot(game, rev, {title:settings.title, setup:setupOpen, lineElapsed:lineSince ? Date.now() - lineSince : 0}),
+      cmd => {
+        const next = L.applyCommand(setupOpen ? null : game, cmd, rev);
+        if (!next || next === game) return false;
+        if (dialog.open) dialog.close();
+        transition(next);
+        return true;
+      });
+  }
+  function stopLink() {
+    connection?.stop();
+    connection = publish = null;
+    room = null; linked = false;
+    write(roomKey, null);
+    updateLinkUI();
+    if (game && !setupOpen) renderGame();
+  }
+  function linkPanel() {
+    if (!room) register(true);
+    modal('Link host phone', '', [['Done', null, true],
+      ['Stop linking', menuAction(() => confirmAction('Stop linking?', 'Continue this game on the stage.', 'Stop linking', stopLink))]]);
+    $('link-panel').hidden = false;
+    updateLinkUI();
+  }
+  $('link-phone').onclick = linkPanel;
+  $('new-code').onclick = () => register(true);
+
   // Browsers require the host to unlock sound with a click or keypress.
   function unlockAudio() {
     if (settings.muted) return;
@@ -41,6 +114,24 @@
     } catch { /* Visual call cue is always present. */ }
   }
   document.addEventListener('click', unlockAudio, {capture:true});
+  let ringInterval;
+  const tones = new Set();
+  function silence() {
+    for (const tone of tones) { tone.disconnect(); tone.stop(); }
+    tones.clear();
+  }
+  function callEffects() {
+    const phase = game?.phase;
+    document.body.classList.toggle('banker-call', phase === 'call' || phase === 'line');
+    if (phase === 'call' && !ringInterval) {
+      ring();
+      ringInterval = setInterval(ring, 2000);
+    } else if (phase !== 'call' && ringInterval) {
+      clearInterval(ringInterval);
+      ringInterval = null;
+      silence();
+    }
+  }
   function ring() {
     if (settings.muted || audio?.state !== 'running') return;
     for (const offset of [0, .25, .8, 1.05]) {
@@ -53,9 +144,10 @@
         gain.gain.exponentialRampToValueAtTime(.055, start + .025);
         gain.gain.exponentialRampToValueAtTime(.0001, start + .19);
         tone.connect(gain).connect(audio.destination);
+        tones.add(tone);
         tone.start(start);
         tone.stop(start + .2);
-        tone.onended = () => { tone.disconnect(); gain.disconnect(); };
+        tone.onended = () => { tones.delete(tone); tone.disconnect(); gain.disconnect(); };
       }
     }
   }
@@ -66,7 +158,7 @@
   $('sound').onclick = () => {
     settings.muted = !settings.muted;
     write(keys.settings, settings);
-    if (settings.muted) audio?.suspend().catch(() => {});
+    if (settings.muted) { silence(); audio?.suspend().catch(() => {}); }
     else unlockAudio();
     soundLabel();
   };
@@ -81,6 +173,7 @@
   }
 
   function modal(title, copy, actions, withName = false) {
+    $('link-panel').hidden = true;
     $('dialog-heading').textContent = title;
     $('dialog-copy').textContent = copy;
     $('dialog-copy').hidden = !copy;
@@ -110,7 +203,7 @@
     });
   }
   $('menu').onclick = () => {
-    const actions = [['Resume', null, true], ['Play Again', menuAction(restart)], ['New Game', menuAction(newGame)]];
+    const actions = [['Resume', null, true], ['Play Again', menuAction(restart)], ['New Game', menuAction(newGame)], ['Link host phone', menuAction(linkPanel)]];
     if (!active() && !setupOpen) actions.push(['Setup', menuAction(openSetup)]);
     modal('Game menu', '', actions);
   };
@@ -119,6 +212,8 @@
 
   function transition(next) {
     clearTimeout(timer);
+    lineSince = next?.phase === 'line' ? Date.now() : null;
+    write(lineKey, lineSince);
     game = next;
     write(keys.state, game);
     render();
@@ -126,12 +221,11 @@
   function advance() {
     if (!game || dialog.open) return;
     if (game.phase === 'reveal') transition(G.finishReveal(game));
-    else if (game.phase === 'call') transition(G.showOffer(game));
   }
   function schedule() {
     clearTimeout(timer);
-    if (!dialog.open && ['reveal','call'].includes(game?.phase)) {
-      timer = setTimeout(advance, game.phase === 'call' ? 1550 : 1700);
+    if (!dialog.open && game?.phase === 'reveal') {
+      timer = setTimeout(advance, 1700);
     }
   }
   dialog.addEventListener('close', schedule);
@@ -149,6 +243,10 @@
   }
   function render() {
     clearTimeout(timer);
+    callEffects();
+    rev++;
+    if (room) write(revKey, rev);
+    publish?.();
     $('confetti').replaceChildren();
     $('title-screen').hidden = !!game || setupOpen;
     $('setup-screen').hidden = !setupOpen;
@@ -248,12 +346,17 @@
         break;
       case 'call':
         heading = 'The Banker is calling…';
-        content = scene('<div class="phone" aria-hidden="true">☎︎</div>', [['Answer call', advance, true]]);
-        ring();
+        content = scene('<div class="phone" aria-hidden="true">☎︎</div>' + (linked ? '<p>Waiting for the host to answer…</p>' : ''),
+          linked ? [] : [['Answer', () => transition(G.answerCall(game)), true]]);
+        break;
+      case 'line':
+        heading = 'The Banker is on the line…';
+        content = scene('<div class="on-line-icon" aria-hidden="true">☎︎</div>' + (linked ? '<p>Host has the Banker on the line…</p>' : ''),
+          linked ? [] : [['Hang up', () => transition(G.hangUp(game)), true]]);
         break;
       case 'offer':
         heading = 'The Banker offers';
-        content = scene(amount(game.offers.at(-1).amount) + '<p>Deal or no deal?</p>', [
+        content = scene(amount(game.offers.at(-1).amount) + '<p>Deal or no deal?</p>', linked ? [] : [
           ['DEAL', () => transition(G.decideOffer(game, true)), true],
           ['NO DEAL', () => transition(G.decideOffer(game, false))]], 'offer');
         break;
@@ -261,6 +364,10 @@
         label = 'The final two';
         heading = 'Keep or swap?';
         const other = G.remainingNumbers(game).find(n => n !== chosen);
+        if (linked) {
+          content = scene(bigCase(chosen) + '<p>Keep #' + chosen + ' or swap for #' + other + '?</p>');
+          break;
+        }
         content = scene('', [], 'swap-options');
         content.append(swapChoice(chosen, false), swapChoice(other, true));
         break;
@@ -415,4 +522,5 @@
     presetOptions(0);
   });
   render();
+  if (room) register(false);
 })();

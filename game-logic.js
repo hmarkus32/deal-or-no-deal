@@ -109,6 +109,14 @@ const DOND = (() => {
     return {...game, offers: [...game.offers, offer], phase: 'call'};
   }
 
+  function answerCall(game) {
+    return game.phase === 'call' ? {...game, phase: 'line'} : game;
+  }
+
+  function hangUp(game) {
+    return game.phase === 'line' ? {...game, phase: 'offer'} : game;
+  }
+
   function showOffer(game) {
     return game.phase === 'call' ? {...game, phase: 'offer'} : game;
   }
@@ -147,7 +155,7 @@ const DOND = (() => {
 
   return {TITLE, FAMILY, CLASSIC, SCHEDULE, FACTORS, defaultSettings, validateAmounts, formatMoney,
     shuffle, roundNice, bankerOffer, newGame, remainingNumbers, revealedCaseNumbers, opensLeft, selectCase, finishReveal,
-    showOffer, decideOffer, finishSwap, revealOtherCase, showResult};
+    answerCall, hangUp, showOffer, decideOffer, finishSwap, revealOtherCase, showResult};
 })();
 
 if (typeof window !== 'undefined') window.DOND = DOND;
