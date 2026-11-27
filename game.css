@@ -273,6 +273,11 @@ dialog:has(#link-panel:not([hidden])) form { gap:14px; }
 }
 #phone-controls .answer { background:#197047; color:white; }
 #phone-controls .hang-up { background:#a52338; color:white; }
+#phone-controls .open-case {
+  min-height:min(35dvh,calc((100dvh - 240px) / 1.35)); font-size:clamp(38px,11vmin,68px);
+  font-weight:850; border-radius:22px; background:linear-gradient(155deg,#ffe2a0,#efb748);
+  border-color:#ffe5ad; color:#211609;
+}
 #phone-controls .call-timer { font-variant-numeric:tabular-nums; font-size:24px; }
 #phone-controls .phone { font-size:clamp(80px,24vmin,150px); }
 
@@ -286,3 +291,51 @@ dialog:has(#link-panel:not([hidden])) form { gap:14px; }
 }
 /* Host phone: DEAL / NO DEAL fill most of the screen so they are easy to hold up. */
 #phone-controls[data-phase="offer"] button { min-height:min(35dvh,calc((100dvh - 240px) / 2)); }
+
+/* Sealed case: pulse the closed briefcase until the host opens it. */
+body.case-hold .money-panel { opacity:.4; }
+.scene.holding .reveal-case { width:clamp(150px,32vmin,380px); aspect-ratio:1.34; }
+.hold-case { animation:hold-pulse 1.15s ease-in-out infinite; filter:drop-shadow(0 0 28px #f7cd7680); }
+.hold-case .case-lid { transform:perspective(650px) rotateX(0deg); animation:none; }
+@keyframes hold-pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.05); } }
+
+/* DEAL / NO DEAL stage stingers. */
+#sting {
+  position:fixed; inset:0; z-index:30; display:grid; place-items:center;
+  pointer-events:auto;
+}
+#sting[hidden] { display:none !important; }
+#sting.no-deal { background:radial-gradient(ellipse at 50% 42%,#c12b38d8,#14060acc 72%); }
+#sting.deal { background:radial-gradient(ellipse at 50% 42%,#2f7a48d0,#0c1a10cc 72%); }
+#sting strong {
+  font-size:clamp(64px,18vmin,240px); font-weight:950; letter-spacing:-.06em;
+  line-height:.85; text-align:center; max-width:96%;
+  animation:sting-slam .5s cubic-bezier(.13,1.35,.28,1) both;
+}
+#sting.no-deal strong {
+  color:#ff5a62;
+  text-shadow:0 0 .12em #ff233d,0 0 .55em #ff233d99,0 8px 0 #4a0c12;
+  animation:sting-slam .5s cubic-bezier(.13,1.35,.28,1) both, sting-shake .42s .18s ease-in-out 2;
+}
+#sting.deal strong {
+  color:#ffe7b0;
+  text-shadow:0 0 .12em #f7cd76,0 0 .6em #4ade80aa,0 8px 0 #3a2a10;
+}
+@keyframes sting-slam {
+  0% { transform:scale(2.35) rotate(-8deg); opacity:0; }
+  55% { transform:scale(.9) rotate(2deg); opacity:1; }
+  100% { transform:scale(1) rotate(-1deg); }
+}
+@keyframes sting-shake {
+  0%,100% { transform:translateX(0) rotate(-1deg); }
+  25% { transform:translateX(-12px) rotate(-2.5deg); }
+  75% { transform:translateX(12px) rotate(1.5deg); }
+}
+body.no-deal-sting::after {
+  content:""; position:fixed; inset:0; z-index:31; pointer-events:none;
+  box-shadow:inset 0 0 0 clamp(10px,1.6vmin,24px) #ff4251,inset 0 0 6vmin 1vmin #ff233dcc;
+}
+body.deal-sting::after {
+  content:""; position:fixed; inset:0; z-index:31; pointer-events:none;
+  box-shadow:inset 0 0 0 clamp(10px,1.6vmin,24px) #f7cd76,inset 0 0 6vmin 1vmin #3ecf7a66;
+}

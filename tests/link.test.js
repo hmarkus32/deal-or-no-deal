@@ -9,9 +9,32 @@ function freshGame() { return G.newGame(G.defaultSettings(), () => .999999); }
 
 function ringing() {
   let game = G.selectCase(freshGame(), 1);
-  for (let n = 2; game.phase === 'open'; n++) game = G.finishReveal(G.selectCase(game, n));
+  for (let n = 2; game.phase === 'open'; n++) game = G.finishReveal(G.openCase(G.selectCase(game, n)));
   return game;
 }
+
+
+test('a picked case stays sealed until openCase, and snapshots withhold its amount', () => {
+  let game = G.selectCase(freshGame(), 1);
+  const hold = G.selectCase(game, 2);
+  assert.equal(hold.phase, 'hold');
+  assert.deepEqual(G.revealedCaseNumbers(hold), []);
+  assert.deepEqual(G.revealedCaseNumbers(hold, true), []);
+  const snap = L.snapshot(hold, 1);
+  assert.equal(snap.phase, 'hold');
+  assert.deepEqual(snap.opened, []);
+  assert.equal(snap.heading, 'Open case #2');
+  assert.equal(G.openCase(game), game);
+  assert.equal(G.finishReveal(hold), hold);
+  const reveal = G.openCase(hold);
+  assert.equal(reveal.phase, 'reveal');
+  assert.equal(G.openCase(reveal), reveal);
+  assert.deepEqual(G.revealedCaseNumbers(reveal), []);
+  assert.deepEqual(G.revealedCaseNumbers(reveal, true), [2]);
+  assert.deepEqual(L.snapshot(reveal, 2).opened, [{n:2, amount:hold.cases[1]}]);
+  assert.equal(L.applyCommand(hold, {type:'cmd', phase:'hold', rev:1, action:'openCase'}, 1).phase, 'reveal');
+  assert.equal(L.applyCommand(hold, {type:'cmd', phase:'hold', rev:1, action:'continue'}, 1), hold);
+});
 
 test('a saved v1 call waits for Answer and Hang up, preserving its existing offer', () => {
   const call = JSON.parse(JSON.stringify(ringing()));
@@ -134,6 +157,9 @@ for (const path of ['deal','keep','swap']) test('fake stage and phone play to re
   tap('selectCase', 1);
   for (let n = 2; game.phase === 'open';) {
     tap('selectCase', n++);
+    assert.equal(phoneState.phase, 'hold');
+    assert.equal(phoneState.opened.some(c => c.n === n - 1), false);
+    tap('openCase');
     assert.equal(phoneState.phase, 'reveal');
     tap('continue');
     if (phoneState.phase === 'open') continue;

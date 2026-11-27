@@ -94,7 +94,7 @@
         status = next; detail = reason;
         linked = next === 'linked';
         updateLinkUI();
-        if (wasLinked !== linked && ['call','line','offer','swap'].includes(game?.phase)) renderGame();
+        if (wasLinked !== linked && ['hold','call','line','offer','swap'].includes(game?.phase)) renderGame();
       }
     });
     publish = L.serve(connection,
@@ -135,16 +135,29 @@
       if (audio.state === 'suspended') audio.resume().catch(() => {});
     } catch { /* Visual call cue is always present. */ }
   }
-  document.addEventListener('click', unlockAudio, {capture:true});
-  let ringInterval;
+  for (const ev of ['pointerdown', 'click', 'keydown']) {
+    document.addEventListener(ev, unlockAudio, {capture:true});
+  }
+  let ringInterval, beatInterval, stingTimer;
   const tones = new Set();
   function silence() {
-    for (const tone of tones) { tone.disconnect(); tone.stop(); }
+    for (const tone of tones) { try { tone.stop(); } catch {} tone.disconnect(); }
     tones.clear();
+  }
+  function hear() {
+    return !settings.muted && audio?.state === 'running';
+  }
+  function cue(node, gain, stopAt, dest = audio.destination) {
+    node.connect(gain).connect(dest);
+    tones.add(node);
+    node.start();
+    node.stop(stopAt);
+    node.onended = () => { tones.delete(node); try { node.disconnect(); gain.disconnect(); } catch {} };
   }
   function callEffects() {
     const phase = game?.phase;
     document.body.classList.toggle('banker-call', phase === 'call' || phase === 'line');
+    document.body.classList.toggle('case-hold', phase === 'hold');
     if (phase === 'call' && !ringInterval) {
       ring();
       ringInterval = setInterval(ring, 2000);
@@ -153,9 +166,158 @@
       ringInterval = null;
       silence();
     }
+    if (phase === 'hold' && !beatInterval) {
+      heartbeat();
+      beatInterval = setInterval(heartbeat, 1150);
+    } else if (phase !== 'hold' && beatInterval) {
+      clearInterval(beatInterval);
+      beatInterval = null;
+      silence();
+    }
+  }
+  function heartbeat() {
+    if (!hear()) return;
+    const start = audio.currentTime;
+    for (const [offset, freq, peak] of [[0, 68, .09], [.16, 52, .07]]) {
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(.0001, start + offset);
+      gain.gain.exponentialRampToValueAtTime(peak, start + offset + .02);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + offset + .16);
+      cue(osc, gain, start + offset + .18);
+    }
+  }
+  function playSting(kind) {
+    clearTimeout(stingTimer);
+    const box = $('sting');
+    const label = kind === 'deal' ? 'DEAL!' : 'NO DEAL!';
+    box.className = kind === 'deal' ? 'deal' : 'no-deal';
+    box.querySelector('strong').textContent = label;
+    box.hidden = false;
+    box.setAttribute('aria-hidden', 'false');
+    document.body.classList.toggle('deal-sting', kind === 'deal');
+    document.body.classList.toggle('no-deal-sting', kind !== 'deal');
+    if (kind === 'deal') dealSound();
+    else noDealSound();
+    stingTimer = setTimeout(clearSting, 2000);
+  }
+  function clearSting() {
+    clearTimeout(stingTimer);
+    stingTimer = null;
+    const box = $('sting');
+    box.hidden = true;
+    box.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('deal-sting', 'no-deal-sting');
+  }
+  function noDealSound() {
+    if (!hear()) return;
+    const t0 = audio.currentTime;
+    const boom = audio.createOscillator();
+    const boomGain = audio.createGain();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(72, t0);
+    boom.frequency.exponentialRampToValueAtTime(34, t0 + .7);
+    boomGain.gain.setValueAtTime(.0001, t0);
+    boomGain.gain.exponentialRampToValueAtTime(.24, t0 + .03);
+    boomGain.gain.exponentialRampToValueAtTime(.0001, t0 + 1.05);
+    cue(boom, boomGain, t0 + 1.1);
+    const body = audio.createOscillator();
+    const bodyGain = audio.createGain();
+    body.type = 'triangle';
+    body.frequency.setValueAtTime(58, t0);
+    body.frequency.exponentialRampToValueAtTime(30, t0 + .55);
+    bodyGain.gain.setValueAtTime(.0001, t0);
+    bodyGain.gain.exponentialRampToValueAtTime(.1, t0 + .02);
+    bodyGain.gain.exponentialRampToValueAtTime(.0001, t0 + .7);
+    cue(body, bodyGain, t0 + .75);
+    const sample = audio.sampleRate, length = Math.floor(sample * .28);
+    const buffer = audio.createBuffer(1, length, sample);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (length * .18));
+    const noise = audio.createBufferSource();
+    noise.buffer = buffer;
+    const thud = audio.createGain();
+    const filter = audio.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 160;
+    thud.gain.setValueAtTime(.2, t0);
+    thud.gain.exponentialRampToValueAtTime(.0001, t0 + .25);
+    noise.connect(filter).connect(thud).connect(audio.destination);
+    tones.add(noise);
+    noise.start(t0);
+    noise.stop(t0 + .28);
+    noise.onended = () => { tones.delete(noise); try { noise.disconnect(); filter.disconnect(); thud.disconnect(); } catch {} };
+  }
+  function dealSound() {
+    if (!hear()) return;
+    const t0 = audio.currentTime;
+    for (const [i, freq] of [523.25, 659.25, 783.99, 1046.5].entries()) {
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      const start = t0 + i * .07;
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(.0001, start);
+      gain.gain.exponentialRampToValueAtTime(.09, start + .02);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + .45);
+      cue(osc, gain, start + .5);
+    }
+    const ding = audio.createOscillator();
+    const dingGain = audio.createGain();
+    ding.type = 'sine';
+    ding.frequency.setValueAtTime(1480, t0 + .12);
+    ding.frequency.exponentialRampToValueAtTime(1960, t0 + .28);
+    dingGain.gain.setValueAtTime(.0001, t0 + .12);
+    dingGain.gain.exponentialRampToValueAtTime(.07, t0 + .14);
+    dingGain.gain.exponentialRampToValueAtTime(.0001, t0 + .4);
+    cue(ding, dingGain, t0 + .42);
+  }
+  function revealSound(high) {
+    if (!hear()) return;
+    const t0 = audio.currentTime;
+    if (high) {
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(196, t0);
+      osc.frequency.exponentialRampToValueAtTime(72, t0 + .55);
+      gain.gain.setValueAtTime(.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(.14, t0 + .03);
+      gain.gain.exponentialRampToValueAtTime(.0001, t0 + .7);
+      cue(osc, gain, t0 + .75);
+      const low = audio.createOscillator();
+      const lowGain = audio.createGain();
+      low.type = 'sine';
+      low.frequency.setValueAtTime(90, t0);
+      low.frequency.exponentialRampToValueAtTime(48, t0 + .5);
+      lowGain.gain.setValueAtTime(.0001, t0);
+      lowGain.gain.exponentialRampToValueAtTime(.1, t0 + .02);
+      lowGain.gain.exponentialRampToValueAtTime(.0001, t0 + .6);
+      cue(low, lowGain, t0 + .65);
+    } else {
+      for (const [i, freq] of [880, 1320].entries()) {
+        const osc = audio.createOscillator();
+        const gain = audio.createGain();
+        const start = t0 + i * .09;
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(.0001, start);
+        gain.gain.exponentialRampToValueAtTime(.08, start + .015);
+        gain.gain.exponentialRampToValueAtTime(.0001, start + .22);
+        cue(osc, gain, start + .25);
+      }
+    }
+  }
+  function playRevealCue() {
+    const n = game.phase === 'otherReveal' ? game.result.other
+      : game.phase === 'finalReveal' ? game.chosen
+      : game.opened.at(-1);
+    revealSound(game.cases[n - 1] >= game.amounts[13]);
   }
   function ring() {
-    if (settings.muted || audio?.state !== 'running') return;
+    if (!hear()) return;
     for (const offset of [0, .25, .8, 1.05]) {
       for (const frequency of [440, 480]) {
         const start = audio.currentTime + offset;
@@ -234,10 +396,17 @@
 
   function transition(next) {
     clearTimeout(timer);
+    const from = game;
     lineSince = next?.phase === 'line' ? Date.now() : null;
     write(lineKey, lineSince);
     game = next;
     write(keys.state, game);
+    const decision = from?.phase === 'offer' && next && next !== from && next.offers?.at(-1)?.decision;
+    if (decision === 'no deal') playSting('no-deal');
+    else if (decision === 'deal') playSting('deal');
+    else if (from?.phase === 'hold' && next?.phase === 'reveal') playRevealCue();
+    else if (next && next !== from && (next.phase === 'finalReveal' || next.phase === 'otherReveal')) playRevealCue();
+    else if (next?.phase !== 'offer' && next?.phase !== 'result') clearSting();
     render();
   }
   function advance() {
@@ -246,9 +415,9 @@
   }
   function schedule() {
     clearTimeout(timer);
-    if (!dialog.open && game?.phase === 'reveal') {
-      timer = setTimeout(advance, 1700);
-    }
+    if (dialog.open || !game) return;
+    if (game.phase === 'hold' && !linked) timer = setTimeout(() => { if (game?.phase === 'hold') transition(G.openCase(game)); }, 1500);
+    else if (game.phase === 'reveal') timer = setTimeout(advance, 1400);
   }
   dialog.addEventListener('close', schedule);
 
@@ -331,7 +500,7 @@
   function revealScene(number, gold, action) {
     const openedCase = '<div class="reveal-case' + (gold ? ' gold-case' : '') + '" aria-hidden="true">' +
       caseFace(number) + '<span class="case-lid"></span></div>';
-    return scene(amount(game.cases[number - 1]) + openedCase, [action], 'revealing');
+    return scene(amount(game.cases[number - 1]) + openedCase, action ? [action] : [], 'revealing');
   }
 
   function swapChoice(number, swap) {
@@ -361,9 +530,18 @@
         content = caseGrid();
         break;
       }
+      case 'hold':
+        heading = 'Case #' + last;
+        content = scene(
+          '<div class="reveal-case hold-case gold-case" aria-hidden="true">' + caseFace(last) +
+            '<span class="case-lid"></span></div>' +
+          (linked ? '<p>The host will open the case…</p>' : ''),
+          linked ? [] : [['Open case', () => transition(G.openCase(game)), true]],
+          'holding');
+        break;
       case 'reveal':
         heading = 'Inside case #' + last;
-        content = revealScene(last, true, ['Continue', advance]);
+        content = revealScene(last, true, linked ? null : ['Continue', advance]);
         break;
       case 'call':
         heading = 'The Banker is calling…';
