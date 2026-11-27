@@ -36,11 +36,11 @@ const DONDLink = (() => {
     const left = G.opensLeft(game);
     const headings = {
       pick:'Pick your case', open:'Open ' + left + ' more ' + (left === 1 ? 'case' : 'cases'),
-      reveal:'Opening case #' + last + '…', call:'The Banker is calling…', line:'The Banker',
+      hold:'Open case #' + last, reveal:'Opening case #' + last + '…', call:'The Banker is calling…', line:'The Banker',
       offer:'Deal or no deal?', swap:'Keep or swap?', finalReveal:'Inside your case #' + chosen,
       otherReveal:'Inside the other case #' + result?.other, result:'Game over'
     };
-    const opened = G.revealedCaseNumbers(game, true).map(n => ({n, amount:game.cases[n - 1]}));
+    const opened = G.revealedCaseNumbers(game, phase !== 'hold').map(n => ({n, amount:game.cases[n - 1]}));
     const state = {...base, heading:headings[phase], round, chosen, remaining:26 - opened.length, opened};
     if (['line','offer','swap','finalReveal','otherReveal','result'].includes(phase)) state.offer = game.offers.at(-1).amount;
     if (phase === 'line') state.lineElapsed = lineElapsed;
@@ -55,6 +55,7 @@ const DONDLink = (() => {
         !Number.isSafeInteger(cmd.rev) || cmd.rev < 0 || cmd.rev !== rev) return game;
     switch (cmd.action) {
       case 'selectCase': return G.selectCase(game, cmd.n);
+      case 'openCase': return G.openCase(game);
       case 'continue': return G.finishReveal(game);
       case 'answer': return G.answerCall(game);
       case 'hangUp': return G.hangUp(game);

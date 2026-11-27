@@ -46,6 +46,9 @@
       case 'open':
         controls.append(cases());
         break;
+      case 'hold':
+        controls.append(command('Open case', 'openCase', 'open-case'));
+        break;
       case 'reveal':
         controls.append(command('Continue', 'continue', 'gold'));
         break;
