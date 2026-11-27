@@ -94,11 +94,46 @@ main { display: flex; }
 .scene { width:100%; min-height:0; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:clamp(8px,2.2vh,30px); }
 .big-case { display:grid; place-items:center; width:clamp(90px,13vmin,176px); height:clamp(75px,12vmin,150px); padding-top:1em; }
 .big-case .case-face { width:100%; height:100%; max-height:100%; font-size:clamp(28px,4vmin,72px); }
-.revealing .case-face { animation:lid .65s ease-out both; transform-origin:center bottom; }
-@keyframes lid { from { transform:perspective(450px) rotateX(0); } to { transform:perspective(450px) rotateX(-43deg) translateY(-4%); } }
+.scene.revealing {
+  --case-width:clamp(120px,24vmin,320px);
+  --reveal-gap:clamp(10px,2vmin,24px);
+  gap:var(--reveal-gap);
+}
+.reveal-case { position:relative; flex:none; width:var(--case-width); aspect-ratio:1.65; }
+.reveal-case .case-face {
+  width:100%; height:100%; max-width:none; max-height:none; aspect-ratio:auto;
+  align-items:end; padding-bottom:2%; font-size:clamp(22px,4vmin,60px); line-height:1;
+}
+/* The lining and numbered front stay put while the lid pivots at the back edge. */
+.reveal-case .case-face::before {
+  inset:4% 4% auto; width:auto; height:59%; border:2px solid #786650; border-radius:9%;
+  background:radial-gradient(ellipse at 50% 85%,#675043,#241e27 76%);
+  box-shadow:inset 0 5px 10px #100c12;
+}
+.reveal-case .case-face::after { top:70%; }
+.case-lid {
+  position:absolute; z-index:2; inset:0 0 auto; height:66%; border:2px solid #bfb6bf; border-radius:10%;
+  background:repeating-linear-gradient(0deg,transparent 0 8px,#fff2 9px 10px),linear-gradient(115deg,#968d98,#e7dfe2 35%,#aca2ae);
+  box-shadow:inset 0 0 0 2px #fff5,0 2px 4px #0008;
+  transform-origin:50% 5%; transform:perspective(650px) rotateX(-98deg);
+  animation:open-lid .8s cubic-bezier(.4,0,.2,1) both;
+}
+.gold-case .case-lid {
+  border-color:#ebc988;
+  background:repeating-linear-gradient(0deg,transparent 0 8px,#fffa 9px,#fff0 10px),linear-gradient(115deg,#af8146,#ffe0a2 35%,#c59b59);
+}
+.case-lid::before {
+  content:""; position:absolute; bottom:100%; left:32%; width:36%; height:22%; box-sizing:border-box;
+  border:3px solid #d1c3b5; border-bottom:0; border-radius:7px 7px 0 0;
+}
+@keyframes open-lid { 0%,12% { transform:perspective(650px) rotateX(0deg); } }
 .amount { max-width:100%; font-size:clamp(48px,9vmin,140px); line-height:1.05; letter-spacing:-.065em; font-weight:900; color:var(--gold); overflow-wrap:anywhere; }
-.revealing .amount { animation:amount-in .45s .18s both; }
-@keyframes amount-in { from { transform:scale(.78); opacity:0; } }
+.revealing .amount { position:relative; z-index:1; animation:prize-rise .64s .26s both; }
+@keyframes prize-rise {
+  from { transform:translateY(calc(50% + var(--reveal-gap) + var(--case-width) * .2)) scale(.35); opacity:0; }
+  35% { opacity:1; }
+  to { transform:translateY(0) scale(1); opacity:1; }
+}
 .scene p { max-width:96%; font-size:clamp(18px,min(2.2vw,3.7vh),42px); line-height:1.25; }
 .scene .actions { justify-content:center; }
 .scene button { font-size:clamp(17px,1.7vw,34px); padding:.65em 1.5em; }

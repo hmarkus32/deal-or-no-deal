@@ -161,6 +161,32 @@ test('early and mid-game deals compare the fixed offer with the contestant’s o
   assert.equal(tied.result.difference,0);
 });
 
+test('money board marks each amount when its case is revealed, including both final cases', () => {
+  const reveal = G.selectCase(contestant(), 2);
+  assert.deepEqual(G.revealedCaseNumbers(reveal), []);
+  assert.deepEqual(G.revealedCaseNumbers(reveal, true), [2]);
+
+  let game = contestant();
+  for (const count of G.SCHEDULE) {
+    assert.equal(G.opensLeft(game), count);
+    game = G.decideOffer(playUntilOffer(game), false);
+  }
+  for (const swap of [false, true]) {
+    const chosen = G.finishSwap(game, swap);
+    const first = [...game.opened, chosen.chosen];
+    const both = [...first, chosen.result.other];
+    assert.deepEqual(G.revealedCaseNumbers(chosen), game.opened);
+    assert.deepEqual(G.revealedCaseNumbers(chosen, true), first);
+    const other = G.revealOtherCase(chosen);
+    assert.deepEqual(G.revealedCaseNumbers(other), first);
+    assert.deepEqual(G.revealedCaseNumbers(other, true), both);
+    assert.deepEqual(G.revealedCaseNumbers(G.showResult(other)), both);
+    assert.equal(new Set(both).size, 26);
+  }
+  const deal = G.decideOffer(playUntilOffer(contestant()), true);
+  assert.deepEqual(G.revealedCaseNumbers(G.showResult(deal)), [...deal.opened, deal.chosen]);
+});
+
 test('wrong-phase and repeated inputs cannot open the held case or duplicate a transition', () => {
   const game = contestant();
   for (const n of [0,27,1,1.5]) assert.equal(G.selectCase(game,n),game);

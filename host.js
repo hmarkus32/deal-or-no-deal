@@ -161,15 +161,15 @@
     else renderTitle();
   }
 
-  function board() {
-    const opened = game.phase === 'reveal' ? game.opened.slice(0,-1) : game.opened;
+  function board(revealComplete = false) {
+    const opened = G.revealedCaseNumbers(game, revealComplete);
     const out = new Set(opened.map(n => game.cases[n - 1]));
     const latest = game.cases[opened.at(-1) - 1];
     $('in-play').textContent = (26 - opened.length) + ' in play';
     const cells = game.amounts.map((value, i) => {
       const cell = document.createElement('span');
       cell.className = 'money' + (i >= 13 ? ' high' : '') + (out.has(value) ? ' out' : '');
-      if (value === latest && ['open','call'].includes(game.phase)) cell.classList.add('new-out');
+      if (value === latest && (revealComplete || ['open','call'].includes(game.phase))) cell.classList.add('new-out');
       cell.textContent = money(value);
       if (out.has(value)) cell.setAttribute('aria-label', cell.textContent + ' eliminated');
       return cell;
@@ -209,6 +209,12 @@
     '" aria-label="Case ' + n + '">' + caseFace(n) + '</div>';
   const amount = value => '<div class="amount">' + money(value) + '</div>';
 
+  function revealScene(number, gold, action) {
+    const openedCase = '<div class="reveal-case' + (gold ? ' gold-case' : '') + '" aria-hidden="true">' +
+      caseFace(number) + '<span class="case-lid"></span></div>';
+    return scene(amount(game.cases[number - 1]) + openedCase, [action], 'revealing');
+  }
+
   function swapChoice(number, swap) {
     const choice = document.createElement('div');
     choice.className = 'swap-choice';
@@ -238,7 +244,7 @@
       }
       case 'reveal':
         heading = 'Inside case #' + last;
-        content = scene(bigCase(last) + amount(game.cases[last - 1]), [['Continue', advance]], 'revealing');
+        content = revealScene(last, true, ['Continue', advance]);
         break;
       case 'call':
         heading = 'The Banker is calling…';
@@ -262,15 +268,15 @@
       case 'finalReveal':
         label = result.type === 'deal' ? 'Deal accepted' : 'Final reveal';
         heading = 'Inside your case #' + chosen;
-        content = scene(bigCase(chosen, result.type !== 'swap') + amount(game.cases[chosen - 1]), [result.type === 'deal'
+        content = revealScene(chosen, result.type !== 'swap', result.type === 'deal'
           ? ['Show result', () => transition(G.showResult(game)), true]
-          : ['Open case #' + result.other, () => transition(G.revealOtherCase(game)), true]], 'revealing');
+          : ['Open case #' + result.other, () => transition(G.revealOtherCase(game)), true]);
         break;
       case 'otherReveal':
         label = 'What you could have won';
         heading = 'Inside the other case #' + result.other;
-        content = scene(bigCase(result.other, result.type === 'swap') + amount(result.otherAmount),
-          [['Show result', () => transition(G.showResult(game)), true]], 'revealing');
+        content = revealScene(result.other, result.type === 'swap',
+          ['Show result', () => transition(G.showResult(game)), true]);
         break;
       case 'result': {
         label = 'Game complete';
@@ -295,7 +301,13 @@
     $('round-label').textContent = label;
     $('play-heading').textContent = heading;
     $('play-area').replaceChildren(content);
-    board();
+    const prize = content.matches('.revealing') && content.querySelector('.amount');
+    board(Boolean(prize) && reducedMotion.matches);
+    if (prize && !reducedMotion.matches) {
+      const markRevealed = () => { if (content.isConnected) board(true); };
+      prize.addEventListener('animationend', markRevealed, {once:true});
+      prize.addEventListener('animationcancel', markRevealed, {once:true});
+    }
     $('play-heading').focus({preventScroll:true});
     schedule();
   }

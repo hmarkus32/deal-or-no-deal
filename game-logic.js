@@ -78,6 +78,18 @@ const DOND = (() => {
     return game.cases.map((_, i) => i + 1).filter(n => !game.opened.includes(n));
   }
 
+  // The money board follows what the room has seen, including the final cases
+  // that are outside the round schedule. Wait for the prize to rise before marking it.
+  function revealedCaseNumbers(game, revealComplete = false) {
+    if (game.phase === 'reveal' && !revealComplete) return game.opened.slice(0, -1);
+    if (!game.result || (game.phase === 'finalReveal' && !revealComplete)) return game.opened;
+    const revealed = [...game.opened, game.chosen];
+    if (game.result.other && (game.phase === 'result' || (game.phase === 'otherReveal' && revealComplete))) {
+      revealed.push(game.result.other);
+    }
+    return revealed;
+  }
+
   function opensLeft(game) {
     return SCHEDULE.slice(0, game.round).reduce((sum, n) => sum + n, 0) - game.opened.length;
   }
@@ -134,7 +146,7 @@ const DOND = (() => {
   }
 
   return {TITLE, FAMILY, CLASSIC, SCHEDULE, FACTORS, defaultSettings, validateAmounts, formatMoney,
-    shuffle, roundNice, bankerOffer, newGame, remainingNumbers, opensLeft, selectCase, finishReveal,
+    shuffle, roundNice, bankerOffer, newGame, remainingNumbers, revealedCaseNumbers, opensLeft, selectCase, finishReveal,
     showOffer, decideOffer, finishSwap, revealOtherCase, showResult};
 })();
 
