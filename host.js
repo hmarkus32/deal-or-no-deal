@@ -5,7 +5,7 @@
   const L = window.DONDLink;
   const $ = id => document.getElementById(id);
   const money = G.formatMoney;
-  const keys = {state: 'dond-state-v1', settings: 'dond-settings-v1', presets: 'dond-presets-v1'};
+  const keys = {state: 'dond-state-v2', settings: 'dond-settings-v1', presets: 'dond-presets-v1'};
   function read(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
     catch { return fallback; }
@@ -14,7 +14,8 @@
     try {
       if (value === null) localStorage.removeItem(key);
       else localStorage.setItem(key, JSON.stringify(value));
-    } catch { /* Keep this session playable if the browser blocks storage. */ }
+      return true;
+    } catch { return false; }
   }
   let settings = read(keys.settings, G.defaultSettings());
   if (!settings || G.validateAmounts(settings.amounts).error || typeof settings.title !== 'string') settings = G.defaultSettings();
@@ -29,11 +30,18 @@
     write(upgradeKey, true);
   }
   let game = read(keys.state, null);
+  if (!game) {
+    const saved = read('dond-state-v1', null);
+    if (saved) {
+      // PR #4 saved a picked case before opening it. Resume at its reveal.
+      game = saved.phase === 'hold' ? {...saved, phase:'reveal'} : saved;
+      if (write(keys.state, game)) write('dond-state-v1', null);
+    }
+  }
   let presets = read(keys.presets, []);
   const builtins = G.PRESETS;
   let setupOpen = false;
-  let timer;
-  let audio;
+  const sound = window.DONDSound(() => settings.muted);
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const dialog = $('host-dialog');
   const fields = [];
@@ -94,7 +102,7 @@
         status = next; detail = reason;
         linked = next === 'linked';
         updateLinkUI();
-        if (wasLinked !== linked && ['hold','call','line','offer','swap'].includes(game?.phase)) renderGame();
+        if (wasLinked !== linked && ['call','line','offer','swap'].includes(game?.phase)) renderGame();
       }
     });
     publish = L.serve(connection,
@@ -126,67 +134,20 @@
   $('new-code').onclick = () => register(true);
 
   // Browsers require the host to unlock sound with a click or keypress.
-  function unlockAudio() {
-    if (settings.muted) return;
-    const Context = window.AudioContext || window.webkitAudioContext;
-    if (!Context) return;
-    try {
-      audio ??= new Context();
-      if (audio.state === 'suspended') audio.resume().catch(() => {});
-    } catch { /* Visual call cue is always present. */ }
-  }
   for (const ev of ['pointerdown', 'click', 'keydown']) {
-    document.addEventListener(ev, unlockAudio, {capture:true});
+    document.addEventListener(ev, sound.unlock, {capture:true});
   }
-  let ringInterval, beatInterval, stingTimer;
-  const tones = new Set();
-  function silence() {
-    for (const tone of tones) { try { tone.stop(); } catch {} tone.disconnect(); }
-    tones.clear();
-  }
-  function hear() {
-    return !settings.muted && audio?.state === 'running';
-  }
-  function cue(node, gain, stopAt, dest = audio.destination) {
-    node.connect(gain).connect(dest);
-    tones.add(node);
-    node.start();
-    node.stop(stopAt);
-    node.onended = () => { tones.delete(node); try { node.disconnect(); gain.disconnect(); } catch {} };
-  }
+  let ringInterval, stingTimer;
   function callEffects() {
     const phase = game?.phase;
     document.body.classList.toggle('banker-call', phase === 'call' || phase === 'line');
-    document.body.classList.toggle('case-hold', phase === 'hold');
     if (phase === 'call' && !ringInterval) {
-      ring();
-      ringInterval = setInterval(ring, 2000);
+      sound.play('ring');
+      ringInterval = setInterval(() => sound.play('ring'), 2000);
     } else if (phase !== 'call' && ringInterval) {
       clearInterval(ringInterval);
       ringInterval = null;
-      silence();
-    }
-    if (phase === 'hold' && !beatInterval) {
-      heartbeat();
-      beatInterval = setInterval(heartbeat, 1150);
-    } else if (phase !== 'hold' && beatInterval) {
-      clearInterval(beatInterval);
-      beatInterval = null;
-      silence();
-    }
-  }
-  function heartbeat() {
-    if (!hear()) return;
-    const start = audio.currentTime;
-    for (const [offset, freq, peak] of [[0, 68, .09], [.16, 52, .07]]) {
-      const osc = audio.createOscillator();
-      const gain = audio.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(.0001, start + offset);
-      gain.gain.exponentialRampToValueAtTime(peak, start + offset + .02);
-      gain.gain.exponentialRampToValueAtTime(.0001, start + offset + .16);
-      cue(osc, gain, start + offset + .18);
+      sound.silence('ring');
     }
   }
   function playSting(kind) {
@@ -199,8 +160,7 @@
     box.setAttribute('aria-hidden', 'false');
     document.body.classList.toggle('deal-sting', kind === 'deal');
     document.body.classList.toggle('no-deal-sting', kind !== 'deal');
-    if (kind === 'deal') dealSound();
-    else noDealSound();
+    sound.play(kind);
     stingTimer = setTimeout(clearSting, 2000);
   }
   function clearSting() {
@@ -211,130 +171,6 @@
     box.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('deal-sting', 'no-deal-sting');
   }
-  function noDealSound() {
-    if (!hear()) return;
-    const t0 = audio.currentTime;
-    const boom = audio.createOscillator();
-    const boomGain = audio.createGain();
-    boom.type = 'sine';
-    boom.frequency.setValueAtTime(72, t0);
-    boom.frequency.exponentialRampToValueAtTime(34, t0 + .7);
-    boomGain.gain.setValueAtTime(.0001, t0);
-    boomGain.gain.exponentialRampToValueAtTime(.24, t0 + .03);
-    boomGain.gain.exponentialRampToValueAtTime(.0001, t0 + 1.05);
-    cue(boom, boomGain, t0 + 1.1);
-    const body = audio.createOscillator();
-    const bodyGain = audio.createGain();
-    body.type = 'triangle';
-    body.frequency.setValueAtTime(58, t0);
-    body.frequency.exponentialRampToValueAtTime(30, t0 + .55);
-    bodyGain.gain.setValueAtTime(.0001, t0);
-    bodyGain.gain.exponentialRampToValueAtTime(.1, t0 + .02);
-    bodyGain.gain.exponentialRampToValueAtTime(.0001, t0 + .7);
-    cue(body, bodyGain, t0 + .75);
-    const sample = audio.sampleRate, length = Math.floor(sample * .28);
-    const buffer = audio.createBuffer(1, length, sample);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (length * .18));
-    const noise = audio.createBufferSource();
-    noise.buffer = buffer;
-    const thud = audio.createGain();
-    const filter = audio.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 160;
-    thud.gain.setValueAtTime(.2, t0);
-    thud.gain.exponentialRampToValueAtTime(.0001, t0 + .25);
-    noise.connect(filter).connect(thud).connect(audio.destination);
-    tones.add(noise);
-    noise.start(t0);
-    noise.stop(t0 + .28);
-    noise.onended = () => { tones.delete(noise); try { noise.disconnect(); filter.disconnect(); thud.disconnect(); } catch {} };
-  }
-  function dealSound() {
-    if (!hear()) return;
-    const t0 = audio.currentTime;
-    for (const [i, freq] of [523.25, 659.25, 783.99, 1046.5].entries()) {
-      const osc = audio.createOscillator();
-      const gain = audio.createGain();
-      const start = t0 + i * .07;
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(.0001, start);
-      gain.gain.exponentialRampToValueAtTime(.09, start + .02);
-      gain.gain.exponentialRampToValueAtTime(.0001, start + .45);
-      cue(osc, gain, start + .5);
-    }
-    const ding = audio.createOscillator();
-    const dingGain = audio.createGain();
-    ding.type = 'sine';
-    ding.frequency.setValueAtTime(1480, t0 + .12);
-    ding.frequency.exponentialRampToValueAtTime(1960, t0 + .28);
-    dingGain.gain.setValueAtTime(.0001, t0 + .12);
-    dingGain.gain.exponentialRampToValueAtTime(.07, t0 + .14);
-    dingGain.gain.exponentialRampToValueAtTime(.0001, t0 + .4);
-    cue(ding, dingGain, t0 + .42);
-  }
-  function revealSound(high) {
-    if (!hear()) return;
-    const t0 = audio.currentTime;
-    if (high) {
-      const osc = audio.createOscillator();
-      const gain = audio.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(196, t0);
-      osc.frequency.exponentialRampToValueAtTime(72, t0 + .55);
-      gain.gain.setValueAtTime(.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(.14, t0 + .03);
-      gain.gain.exponentialRampToValueAtTime(.0001, t0 + .7);
-      cue(osc, gain, t0 + .75);
-      const low = audio.createOscillator();
-      const lowGain = audio.createGain();
-      low.type = 'sine';
-      low.frequency.setValueAtTime(90, t0);
-      low.frequency.exponentialRampToValueAtTime(48, t0 + .5);
-      lowGain.gain.setValueAtTime(.0001, t0);
-      lowGain.gain.exponentialRampToValueAtTime(.1, t0 + .02);
-      lowGain.gain.exponentialRampToValueAtTime(.0001, t0 + .6);
-      cue(low, lowGain, t0 + .65);
-    } else {
-      for (const [i, freq] of [880, 1320].entries()) {
-        const osc = audio.createOscillator();
-        const gain = audio.createGain();
-        const start = t0 + i * .09;
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(.0001, start);
-        gain.gain.exponentialRampToValueAtTime(.08, start + .015);
-        gain.gain.exponentialRampToValueAtTime(.0001, start + .22);
-        cue(osc, gain, start + .25);
-      }
-    }
-  }
-  function playRevealCue() {
-    const n = game.phase === 'otherReveal' ? game.result.other
-      : game.phase === 'finalReveal' ? game.chosen
-      : game.opened.at(-1);
-    revealSound(game.cases[n - 1] >= game.amounts[13]);
-  }
-  function ring() {
-    if (!hear()) return;
-    for (const offset of [0, .25, .8, 1.05]) {
-      for (const frequency of [440, 480]) {
-        const start = audio.currentTime + offset;
-        const tone = audio.createOscillator();
-        const gain = audio.createGain();
-        tone.frequency.value = frequency;
-        gain.gain.setValueAtTime(.0001, start);
-        gain.gain.exponentialRampToValueAtTime(.055, start + .025);
-        gain.gain.exponentialRampToValueAtTime(.0001, start + .19);
-        tone.connect(gain).connect(audio.destination);
-        tones.add(tone);
-        tone.start(start);
-        tone.stop(start + .2);
-        tone.onended = () => { tones.delete(tone); tone.disconnect(); gain.disconnect(); };
-      }
-    }
-  }
   function soundLabel() {
     $('sound-label').textContent = settings.muted ? 'Sound off' : 'Sound on';
     $('sound').setAttribute('aria-pressed', String(!settings.muted));
@@ -342,8 +178,8 @@
   $('sound').onclick = () => {
     settings.muted = !settings.muted;
     write(keys.settings, settings);
-    if (settings.muted) { silence(); audio?.suspend().catch(() => {}); }
-    else unlockAudio();
+    if (settings.muted) sound.silence();
+    else sound.unlock();
     soundLabel();
   };
 
@@ -395,7 +231,6 @@
   $('setup').onclick = openSetup;
 
   function transition(next) {
-    clearTimeout(timer);
     const from = game;
     lineSince = next?.phase === 'line' ? Date.now() : null;
     write(lineKey, lineSince);
@@ -404,22 +239,16 @@
     const decision = from?.phase === 'offer' && next && next !== from && next.offers?.at(-1)?.decision;
     if (decision === 'no deal') playSting('no-deal');
     else if (decision === 'deal') playSting('deal');
-    else if (from?.phase === 'hold' && next?.phase === 'reveal') playRevealCue();
-    else if (next && next !== from && (next.phase === 'finalReveal' || next.phase === 'otherReveal')) playRevealCue();
-    else if (next?.phase !== 'offer' && next?.phase !== 'result') clearSting();
+    else {
+      clearSting();
+      if (next && next !== from && ['reveal','finalReveal','otherReveal'].includes(next.phase)) {
+        const number = next.phase === 'reveal' ? next.opened.at(-1) :
+          next.phase === 'finalReveal' ? next.chosen : next.result.other;
+        sound.play(next.cases[number - 1] >= next.amounts[13] ? 'high' : 'low');
+      }
+    }
     render();
   }
-  function advance() {
-    if (!game || dialog.open) return;
-    if (game.phase === 'reveal') transition(G.finishReveal(game));
-  }
-  function schedule() {
-    clearTimeout(timer);
-    if (dialog.open || !game) return;
-    if (game.phase === 'hold' && !linked) timer = setTimeout(() => { if (game?.phase === 'hold') transition(G.openCase(game)); }, 1500);
-    else if (game.phase === 'reveal') timer = setTimeout(advance, 1400);
-  }
-  dialog.addEventListener('close', schedule);
 
   function renderTitle() {
     const heading = $('game-title');
@@ -432,7 +261,6 @@
     $('board-name').textContent = /board$/i.test(name) ? name : name + ' board';
   }
   function render() {
-    clearTimeout(timer);
     callEffects();
     rev++;
     if (room) write(revKey, rev);
@@ -499,8 +327,9 @@
 
   function revealScene(number, gold, action) {
     const openedCase = '<div class="reveal-case' + (gold ? ' gold-case' : '') + '" aria-hidden="true">' +
-      caseFace(number) + '<span class="case-lid"></span></div>';
-    return scene(amount(game.cases[number - 1]) + openedCase, action ? [action] : [], 'revealing');
+      '<span class="case-lining">' + caseFace(number) + '</span>' +
+      '<span class="case-lid">' + caseFace(number) + '</span></div>';
+    return scene(amount(game.cases[number - 1]) + openedCase, [action], 'revealing');
   }
 
   function swapChoice(number, swap) {
@@ -530,18 +359,9 @@
         content = caseGrid();
         break;
       }
-      case 'hold':
-        heading = 'Case #' + last;
-        content = scene(
-          '<div class="reveal-case hold-case gold-case" aria-hidden="true">' + caseFace(last) +
-            '<span class="case-lid"></span></div>' +
-          (linked ? '<p>The host will open the case…</p>' : ''),
-          linked ? [] : [['Open case', () => transition(G.openCase(game)), true]],
-          'holding');
-        break;
       case 'reveal':
         heading = 'Inside case #' + last;
-        content = revealScene(last, true, linked ? null : ['Continue', advance]);
+        content = revealScene(last, false, ['Continue', () => transition(G.finishReveal(game)), true]);
         break;
       case 'call':
         heading = 'The Banker is calling…';
@@ -571,6 +391,12 @@
         content.append(swapChoice(chosen, false), swapChoice(other, true));
         break;
       }
+      case 'finalSealed':
+        label = result.type === 'deal' ? 'Deal accepted' : 'Final reveal';
+        heading = 'Your sealed case #' + chosen;
+        content = scene(bigCase(chosen, result.type !== 'swap'),
+          [['Open my case', () => transition(G.openMyCase(game)), true]], 'sealed-final');
+        break;
       case 'finalReveal':
         label = result.type === 'deal' ? 'Deal accepted' : 'Final reveal';
         heading = 'Inside your case #' + chosen;
@@ -581,7 +407,7 @@
       case 'otherReveal':
         label = 'What you could have won';
         heading = 'Inside the other case #' + result.other;
-        content = revealScene(result.other, result.type === 'swap',
+        content = revealScene(result.other, false,
           ['Show result', () => transition(G.showResult(game)), true]);
         break;
       case 'result': {
@@ -615,7 +441,6 @@
       prize.addEventListener('animationcancel', markRevealed, {once:true});
     }
     $('play-heading').focus({preventScroll:true});
-    schedule();
   }
   function celebrate() {
     const colors = ['#facd70','#fff1ca','#c29df1','#e0a7a0'];

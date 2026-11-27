@@ -140,8 +140,6 @@ function playUntilOffer(game) {
   const choices = G.remainingNumbers(game).filter(number => number !== game.chosen);
   for (const number of choices.slice(0,n)) {
     game = G.selectCase(game, number);
-    assert.equal(game.phase,'hold');
-    game = G.openCase(game);
     assert.equal(game.phase,'reveal');
     game = G.finishReveal(game,neutral);
   }
@@ -170,7 +168,11 @@ test('nine rounds open 24 distinct cases and keep or swap pays the correct final
   assert.equal(game.offers.length, 9);
   assert.ok(game.offers.every(offer => offer.decision === 'no deal'));
   for (const swap of [true,false]) {
-    const final = G.finishSwap(game,swap);
+    const sealed = G.finishSwap(game,swap);
+    assert.equal(sealed.phase,'finalSealed');
+    assert.equal(G.revealOtherCase(sealed),sealed);
+    assert.equal(G.showResult(sealed),sealed);
+    const final = G.openMyCase(sealed);
     assert.equal(final.phase,'finalReveal');
     assert.equal(final.chosen,swap ? 26 : 1);
     assert.equal(final.result.other,swap ? 1 : 26);
@@ -193,7 +195,10 @@ test('early and mid-game deals compare the fixed offer with the contestant’s o
       let game = contestant(chosen);
       while (game.round < round) game = G.decideOffer(playUntilOffer(game),false);
       const offer = playUntilOffer(game);
-      const final = G.decideOffer(offer,true);
+      const sealed = G.decideOffer(offer,true);
+      assert.equal(sealed.phase,'finalSealed');
+      assert.equal(G.showResult(sealed),sealed);
+      const final = G.openMyCase(sealed);
       assert.equal(G.revealOtherCase(final),final);
       assert.equal(G.showResult(final).phase,'result');
       assert.equal(final.result.winnings,offer.offers.at(-1).amount);
@@ -209,11 +214,7 @@ test('early and mid-game deals compare the fixed offer with the contestant’s o
 });
 
 test('money board marks each amount when its case is revealed, including both final cases', () => {
-  const hold = G.selectCase(contestant(), 2);
-  assert.equal(hold.phase, 'hold');
-  assert.deepEqual(G.revealedCaseNumbers(hold), []);
-  assert.deepEqual(G.revealedCaseNumbers(hold, true), []);
-  const reveal = G.openCase(hold);
+  const reveal = G.selectCase(contestant(), 2);
   assert.equal(reveal.phase, 'reveal');
   assert.deepEqual(G.revealedCaseNumbers(reveal), []);
   assert.deepEqual(G.revealedCaseNumbers(reveal, true), [2]);
@@ -224,7 +225,9 @@ test('money board marks each amount when its case is revealed, including both fi
     game = G.decideOffer(playUntilOffer(game), false);
   }
   for (const swap of [false, true]) {
-    const chosen = G.finishSwap(game, swap);
+    const sealed = G.finishSwap(game, swap);
+    assert.deepEqual(G.revealedCaseNumbers(sealed, true), game.opened);
+    const chosen = G.openMyCase(sealed);
     const first = [...game.opened, chosen.chosen];
     const both = [...first, chosen.result.other];
     assert.deepEqual(G.revealedCaseNumbers(chosen), game.opened);
@@ -236,24 +239,19 @@ test('money board marks each amount when its case is revealed, including both fi
     assert.equal(new Set(both).size, 26);
   }
   const deal = G.decideOffer(playUntilOffer(contestant()), true);
-  assert.deepEqual(G.revealedCaseNumbers(G.showResult(deal)), [...deal.opened, deal.chosen]);
+  assert.deepEqual(G.revealedCaseNumbers(G.showResult(G.openMyCase(deal))), [...deal.opened, deal.chosen]);
 });
 
 test('wrong-phase and repeated inputs cannot open the held case or duplicate a transition', () => {
   const game = contestant();
   for (const n of [0,27,1,1.5]) assert.equal(G.selectCase(game,n),game);
   assert.equal(G.finishReveal(game),game);
-  assert.equal(G.openCase(game),game);
+  assert.equal(G.openMyCase(game),game);
   assert.equal(G.showOffer(game),game);
   assert.equal(G.decideOffer(game,true),game);
   assert.equal(G.finishSwap(game,false),game);
   assert.equal(G.showResult(game),game);
-  const hold = G.selectCase(game,2);
-  assert.equal(hold.phase,'hold');
-  assert.equal(G.selectCase(hold,3),hold);
-  assert.equal(G.finishReveal(hold),hold);
-  const reveal = G.openCase(hold);
-  assert.equal(G.openCase(reveal),reveal);
+  const reveal = G.selectCase(game,2);
   assert.equal(G.selectCase(reveal,3),reveal);
   const reopened = G.finishReveal(reveal);
   assert.equal(G.selectCase(reopened,2),reopened);

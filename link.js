@@ -36,17 +36,18 @@ const DONDLink = (() => {
     const left = G.opensLeft(game);
     const headings = {
       pick:'Pick your case', open:'Open ' + left + ' more ' + (left === 1 ? 'case' : 'cases'),
-      hold:'Open case #' + last, reveal:'Opening case #' + last + '…', call:'The Banker is calling…', line:'The Banker',
-      offer:'Deal or no deal?', swap:'Keep or swap?', finalReveal:'Inside your case #' + chosen,
+      reveal:'Inside case #' + last, call:'The Banker is calling…', line:'The Banker',
+      offer:'Deal or no deal?', swap:'Keep or swap?', finalSealed:'Your sealed case #' + chosen,
+      finalReveal:'Inside your case #' + chosen,
       otherReveal:'Inside the other case #' + result?.other, result:'Game over'
     };
-    const opened = G.revealedCaseNumbers(game, phase !== 'hold').map(n => ({n, amount:game.cases[n - 1]}));
+    const opened = G.revealedCaseNumbers(game, true).map(n => ({n, amount:game.cases[n - 1]}));
     const state = {...base, heading:headings[phase], round, chosen, remaining:26 - opened.length, opened};
     if (['line','offer','swap','finalReveal','otherReveal','result'].includes(phase)) state.offer = game.offers.at(-1).amount;
     if (phase === 'line') state.lineElapsed = lineElapsed;
     if (phase === 'swap') state.other = other;
     // result.otherAmount is already known to the stage during finalReveal. Never copy result wholesale.
-    if (result) state.result = {type:result.type, winnings:result.winnings, other:result.other};
+    if (result && phase !== 'finalSealed') state.result = {type:result.type, winnings:result.winnings, other:result.other};
     return state;
   }
 
@@ -55,7 +56,7 @@ const DONDLink = (() => {
         !Number.isSafeInteger(cmd.rev) || cmd.rev < 0 || cmd.rev !== rev) return game;
     switch (cmd.action) {
       case 'selectCase': return G.selectCase(game, cmd.n);
-      case 'openCase': return G.openCase(game);
+      case 'openMyCase': return G.openMyCase(game);
       case 'continue': return G.finishReveal(game);
       case 'answer': return G.answerCall(game);
       case 'hangUp': return G.hangUp(game);
@@ -74,7 +75,10 @@ const DONDLink = (() => {
     const publish = () => transport.send(getSnapshot());
     transport.onOpen(publish);
     transport.onMessage(message => {
-      if (!command(message)) publish(); // A stale tap gets the current screen back.
+      try {
+        if (command(message)) return;
+      } catch { /* Resync from the authoritative stage after an interrupted command. */ }
+      publish();
     });
     return publish;
   }
@@ -98,19 +102,21 @@ const DONDLink = (() => {
   const PING_MS = 2000, SILENT_MS = 8000, CONNECT_MS = 8000, PHONE_RETRY_MAX = 3000, STAGE_RETRY_MAX = 5000;
   function transport({role, code, fresh = false, onCode = () => {}, onStatus, getPeer = loadPeer}) {
     const stage = role === 'stage';
-    let peer, channel, retryTimer, watchdog, heartbeat;
+    let peer, channel, retryTimer, watchdog, pingTimer;
     let lastSeen = 0, connectingSince = null;
     let generation = 0, stopped = false, connected = false, backoff = 500, collisionSince = null;
     let message = () => {}, opened = () => {}, closed = () => {};
 
     function dropChannel(replaced = false) {
-      clearInterval(heartbeat);
+      clearInterval(pingTimer);
       const old = channel;
       channel = null;
-      if (old && replaced) {
-        old.send({type:'replaced'});
-        old.close({flush:true});
-      } else old?.close();
+      if (old) {
+        try {
+          if (replaced && old.open) old.send({type:'replaced'});
+        } catch { /* A refreshed phone may already have closed its channel. */ }
+        try { old.close(replaced ? {flush:true} : undefined); } catch { /* Already closed. */ }
+      }
       if (connected) { connected = false; closed(); }
     }
     function reset() {
@@ -127,6 +133,16 @@ const DONDLink = (() => {
       onStatus(stage ? 'lost' : 'reconnecting', detail);
       retryTimer = setTimeout(start, now ? 0 : backoff);
       if (!now) backoff = Math.min(stage ? STAGE_RETRY_MAX : PHONE_RETRY_MAX, backoff * 2);
+    }
+    function send(data) {
+      const conn = channel;
+      if (!conn?.open) return;
+      try { conn.send(data); }
+      catch {
+        if (conn !== channel) return;
+        if (stage) { dropChannel(); onStatus('lost', linkError); }
+        else retry(linkError, true);
+      }
     }
     function attach(conn, token) {
       const current = () => !stopped && generation === token;
@@ -146,9 +162,9 @@ const DONDLink = (() => {
         clearTimeout(watchdog);
         backoff = 500;
         lastSeen = Date.now();
-        heartbeat = setInterval(() => {
+        pingTimer = setInterval(() => {
           if (Date.now() - lastSeen >= SILENT_MS) { lost(); return; }
-          conn.send({type:'ping'});
+          send({type:'ping'});
         }, PING_MS);
         onStatus('linked');
         opened();
@@ -164,7 +180,7 @@ const DONDLink = (() => {
       conn.on('data', data => {
         if (!active()) return;
         lastSeen = Date.now();
-        if (data?.type === 'ping') conn.send({type:'pong'});
+        if (data?.type === 'ping') send({type:'pong'});
         else if (!stage && data?.type === 'replaced') {
           stop();
           onStatus('replaced', 'Another phone is linked to this room.');
@@ -193,7 +209,10 @@ const DONDLink = (() => {
             clearTimeout(watchdog);
             fresh = false;
             onStatus('waiting');
-          } else attach(peer.connect(peerId(code), {reliable:true, serialization:'json'}), token);
+          } else {
+            try { attach(peer.connect(peerId(code), {reliable:true, serialization:'json'}), token); }
+            catch { retry(); }
+          }
         });
         peer.on('connection', conn => {
           if (stage && generation === token) attach(conn, token);
@@ -222,7 +241,7 @@ const DONDLink = (() => {
       if (stopped || document.hidden || stage) return;
       // pageshow also fires on initial load while PeerJS is still obtaining a random id.
       if (connectingSince !== null && Date.now() - connectingSince < 15000) return;
-      if (connected && Date.now() - lastSeen < SILENT_MS) channel.send({type:'ping'});
+      if (connected && Date.now() - lastSeen < SILENT_MS) send({type:'ping'});
       else {
         onStatus('reconnecting');
         start();
@@ -241,7 +260,7 @@ const DONDLink = (() => {
       window.addEventListener('pageshow', wake);
     }
     start();
-    return {send(data) { if (channel?.open) channel.send(data); },
+    return {send,
       onMessage(fn) { message = fn; }, onOpen(fn) { opened = fn; }, onClose(fn) { closed = fn; }, stop};
   }
   return {roomCode, normalizeCode, peerId, phoneUrl, snapshot, applyCommand, serve, transport, linkError};

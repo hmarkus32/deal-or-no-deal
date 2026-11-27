@@ -9,32 +9,10 @@ function freshGame() { return G.newGame(G.defaultSettings(), () => .999999); }
 
 function ringing() {
   let game = G.selectCase(freshGame(), 1);
-  for (let n = 2; game.phase === 'open'; n++) game = G.finishReveal(G.openCase(G.selectCase(game, n)));
+  for (let n = 2; game.phase === 'open'; n++) game = G.finishReveal(G.selectCase(game, n));
   return game;
 }
 
-
-test('a picked case stays sealed until openCase, and snapshots withhold its amount', () => {
-  let game = G.selectCase(freshGame(), 1);
-  const hold = G.selectCase(game, 2);
-  assert.equal(hold.phase, 'hold');
-  assert.deepEqual(G.revealedCaseNumbers(hold), []);
-  assert.deepEqual(G.revealedCaseNumbers(hold, true), []);
-  const snap = L.snapshot(hold, 1);
-  assert.equal(snap.phase, 'hold');
-  assert.deepEqual(snap.opened, []);
-  assert.equal(snap.heading, 'Open case #2');
-  assert.equal(G.openCase(game), game);
-  assert.equal(G.finishReveal(hold), hold);
-  const reveal = G.openCase(hold);
-  assert.equal(reveal.phase, 'reveal');
-  assert.equal(G.openCase(reveal), reveal);
-  assert.deepEqual(G.revealedCaseNumbers(reveal), []);
-  assert.deepEqual(G.revealedCaseNumbers(reveal, true), [2]);
-  assert.deepEqual(L.snapshot(reveal, 2).opened, [{n:2, amount:hold.cases[1]}]);
-  assert.equal(L.applyCommand(hold, {type:'cmd', phase:'hold', rev:1, action:'openCase'}, 1).phase, 'reveal');
-  assert.equal(L.applyCommand(hold, {type:'cmd', phase:'hold', rev:1, action:'continue'}, 1), hold);
-});
 
 test('a saved v1 call waits for Answer and Hang up, preserving its existing offer', () => {
   const call = JSON.parse(JSON.stringify(ringing()));
@@ -96,9 +74,14 @@ test('snapshots allowlist revealed values and withhold the banker offer until an
   const next = G.decideOffer(offer, false);
   check(next, call.opened, false);
   const deal = G.decideOffer(offer, true);
-  check(deal, [...deal.opened, deal.chosen], true);
+  assert.ok(!('result' in check(deal, deal.opened, false)));
+  check(G.openMyCase(deal), [...deal.opened, deal.chosen], true);
   const last = {...call, phase:'swap', opened:Array.from({length:24}, (_, i) => i + 2)};
-  const final = G.finishSwap(last, true);
+  const sealed = G.finishSwap(last, true);
+  const hidden = check(sealed, last.opened, false);
+  assert.equal(hidden.phase, 'finalSealed');
+  assert.deepEqual(Object.keys(hidden).sort(), ['chosen','heading','opened','phase','remaining','rev','round','title','type']);
+  const final = G.openMyCase(sealed);
   const snap = check(final, [...last.opened,26], true);
   assert.ok(!('otherAmount' in snap.result));
   check(G.revealOtherCase(final), [...last.opened,26,1], true);
@@ -157,13 +140,15 @@ for (const path of ['deal','keep','swap']) test('fake stage and phone play to re
   tap('selectCase', 1);
   for (let n = 2; game.phase === 'open';) {
     tap('selectCase', n++);
-    assert.equal(phoneState.phase, 'hold');
-    assert.equal(phoneState.opened.some(c => c.n === n - 1), false);
-    tap('openCase');
     assert.equal(phoneState.phase, 'reveal');
+    assert.equal(phoneState.opened.at(-1).n, n - 1);
+    phone.disconnect();
+    connect();
     tap('continue');
     if (phoneState.phase === 'open') continue;
     assert.equal(phoneState.phase, 'call');
+    phone.disconnect();
+    connect();
     tap('answer');
     assert.equal(phoneState.phase, 'line');
     const answered = phoneState;
@@ -174,12 +159,21 @@ for (const path of ['deal','keep','swap']) test('fake stage and phone play to re
     assert.deepEqual(phoneState, answered);
     tap('hangUp');
     assert.equal(phoneState.phase, 'offer');
+    phone.disconnect();
+    connect();
     tap(path === 'deal' ? 'deal' : 'noDeal');
   }
   if (path !== 'deal') {
     assert.equal(phoneState.phase, 'swap');
     tap(path);
     assert.equal(game.chosen, path === 'swap' ? 26 : 1);
+  }
+  assert.equal(phoneState.phase, 'finalSealed');
+  assert.ok(!('result' in phoneState));
+  assert.ok(!phoneState.opened.some(c => c.n === game.chosen));
+  tap('openMyCase');
+  assert.equal(phoneState.phase, 'finalReveal');
+  if (path !== 'deal') {
     tap('openOther');
     assert.equal(phoneState.phase, 'otherReveal');
   }
@@ -187,4 +181,21 @@ for (const path of ['deal','keep','swap']) test('fake stage and phone play to re
   assert.equal(phoneState.phase, 'result');
   assert.equal(phoneState.result.type, path);
   assert.equal(phoneState.result.winnings, game.result.winnings);
+});
+
+test('an interrupted phone command gets a fresh snapshot and the next command still runs', () => {
+  const {stage, phone} = wire();
+  let rev = 1, latest;
+  const publish = L.serve(stage, () => ({rev}), action => {
+    if (action === 'interrupted') throw new Error('Interrupted transition');
+    rev++;
+    publish();
+    return true;
+  });
+  phone.connect(snap => { latest = snap; });
+  latest = null;
+  phone.send('interrupted');
+  assert.deepEqual(latest, {rev:1});
+  phone.send('next');
+  assert.deepEqual(latest, {rev:2});
 });
