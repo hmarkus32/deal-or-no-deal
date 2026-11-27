@@ -18,6 +18,13 @@ const DONDLink = (() => {
     const valid = normalizeCode(code);
     return valid && 'hmarkus32-dond-' + valid.toLowerCase();
   }
+  function phoneUrl(base, code) {
+    const room = normalizeCode(code);
+    if (!room || base == null || base === '') return null;
+    const url = new URL('phone.html', base);
+    url.searchParams.set('room', room);
+    return url.href;
+  }
 
   function snapshot(game, rev, {title = G.TITLE, setup = false, lineElapsed = 0} = {}) {
     const base = {type:'snapshot', rev, title:game?.title || title, phase:setup ? 'setup' : game?.phase || 'title'};
@@ -236,7 +243,7 @@ const DONDLink = (() => {
     return {send(data) { if (channel?.open) channel.send(data); },
       onMessage(fn) { message = fn; }, onOpen(fn) { opened = fn; }, onClose(fn) { closed = fn; }, stop};
   }
-  return {roomCode, normalizeCode, peerId, snapshot, applyCommand, serve, transport, linkError};
+  return {roomCode, normalizeCode, peerId, phoneUrl, snapshot, applyCommand, serve, transport, linkError};
 })();
 if (typeof window !== 'undefined') window.DONDLink = DONDLink;
 if (typeof module !== 'undefined') module.exports = DONDLink;

@@ -50,7 +50,19 @@
   let connection, publish, linked = false;
   let status = 'waiting', detail = '';
 
+  function drawPhoneQr(url) {
+    const box = $('phone-qr');
+    if (box.dataset.url === url) return;
+    box.dataset.url = url || '';
+    box.replaceChildren();
+    if (!url || typeof qrcode !== 'function') return;
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    box.innerHTML = qr.createSvgTag({scalable:true, margin:4, cellSize:1});
+  }
   function updateLinkUI() {
+
     const pill = $('link-status');
     pill.hidden = !room;
     document.body.classList.toggle('has-room', !!room);
@@ -59,11 +71,11 @@
     pill.textContent = linked ? 'Phone linked · ' + room : status === 'waiting' ? 'Waiting for phone · ' + room : 'Link lost · play on stage';
     pill.title = detail || pill.textContent;
     $('room-code').textContent = room;
-    const url = new URL('phone.html', location.href);
-    url.searchParams.set('room', room);
-    $('host-url').textContent = url.href;
-    $('host-url').href = url.href;
-    $('link-detail').textContent = detail || (linked ? 'Phone linked.' : 'Open the host URL on your phone to join.');
+    const url = L.phoneUrl(location.href, room);
+    $('host-url').textContent = url;
+    $('host-url').href = url;
+    drawPhoneQr(url);
+    $('link-detail').textContent = detail || (linked ? 'Phone linked.' : 'Scan the code with your phone, or open the host URL to join.');
     $('new-code').hidden = status !== 'collision';
   }
   function register(fresh) {

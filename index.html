@@ -17,6 +17,7 @@
   </script>
   <script defer src="game-logic.js"></script>
   <script defer src="link.js"></script>
+  <script defer src="vendor/qrcode-generator.min.js"></script>
   <script defer src="host.js"></script>
 </head>
 <body>
@@ -73,9 +74,13 @@
     <form method="dialog">
       <h2 id="dialog-heading"></h2><p id="dialog-copy" hidden></p>
       <div id="link-panel" hidden>
-        <p>Room code</p><strong id="room-code"></strong>
-        <a id="host-url" target="_blank" rel="noopener"></a><p id="link-detail" role="status"></p>
-        <button id="new-code" type="button" hidden>New code</button>
+        <div id="phone-qr" class="phone-qr" role="img" aria-label="QR code for the host phone link"></div>
+        <div class="link-copy">
+          <p>Room code</p><strong id="room-code"></strong>
+          <p id="link-detail" role="status"></p>
+          <button id="new-code" type="button" hidden>New code</button>
+        </div>
+        <a id="host-url" target="_blank" rel="noopener"></a>
       </div>
       <label id="name-label" hidden>Preset name<input id="preset-name" maxlength="60" autocomplete="off"></label>
       <p id="name-error" role="status" hidden></p>

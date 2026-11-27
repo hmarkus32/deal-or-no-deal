@@ -225,10 +225,25 @@ body.banker-call { background:radial-gradient(ellipse at 70% 28%,#a32432,#550e20
 .status-pill { padding:.45em .8em; border-radius:99px; background:#443522; color:#ffe1a1; font-size:var(--label); font-weight:750; text-align:center; }
 .status-pill[data-state="linked"] { color:#c3f7d0; background:#1a4430; }
 .status-pill:is([data-state="lost"],[data-state="collision"],[data-state="reconnecting"],[data-state="replaced"]) { color:#ffcbca; background:#54272f; }
-#link-panel { display:grid; gap:12px; }
-#room-code { color:var(--gold); font-size:clamp(56px,11vmin,100px); line-height:1; letter-spacing:.08em; }
-#host-url { color:var(--gold); overflow-wrap:anywhere; font-size:clamp(16px,1.35vw,24px); }
+dialog:has(#link-panel:not([hidden])) { width:min(640px,94vw); }
+dialog:has(#link-panel:not([hidden])) form { gap:14px; }
+#link-panel { display:grid; grid-template-columns:auto minmax(0,1fr); gap:10px 22px; align-items:center; }
+#phone-qr {
+  grid-row:1; width:clamp(200px,34vh,280px); aspect-ratio:1; box-sizing:border-box;
+  padding:12px; background:#fff; border-radius:12px;
+}
+#phone-qr svg { display:block; width:100%; height:100%; }
+#link-panel .link-copy { grid-row:1; display:grid; gap:8px; min-width:0; align-content:center; }
+#room-code { color:var(--gold); font-size:clamp(44px,8vmin,84px); line-height:1; letter-spacing:.08em; }
+#host-url { grid-column:1/-1; color:var(--gold); overflow-wrap:break-word; font-size:clamp(15px,1.2vw,20px); }
 #new-code { justify-self:start; }
+@media (max-width:520px) {
+  dialog:has(#link-panel:not([hidden])) { width:min(480px,94vw); }
+  #link-panel { grid-template-columns:1fr; justify-items:center; text-align:center; }
+  #phone-qr, #link-panel .link-copy { grid-row:auto; }
+  #phone-qr { width:clamp(168px,36vh,240px); }
+  #host-url { grid-column:auto; }
+}
 @media (max-width:650px) {
   .has-room .topbar { gap:6px; padding-inline:9px; }
   .has-room .brand { flex:1; }
