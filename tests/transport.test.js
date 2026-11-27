@@ -46,14 +46,26 @@ test('the stage replaces an opened phone, ignores its old commands and drops a s
   current.emit('data', 'current');
   assert.deepEqual(received, ['current']);
   assert.deepEqual(old.sent, ['still on old phone', {type:'replaced'}]);
-  await tick(5000);
+  await tick(2000);
   assert.deepEqual(current.sent, [{type:'ping'}]);
   current.emit('data', {type:'pong'});
-  await tick(10000);
+  await tick(6000);
   assert.equal(statuses.at(-1)[0], 'linked');
-  await tick(5000);
+  // Silent for 8 s since the last pong: the stage falls back well under 15 s.
+  await tick(2000);
   assert.equal(statuses.at(-1)[0], 'lost');
   assert.equal(current.open, false);
+});
+
+test('a silent phone is dropped by the stage within 10 seconds of its last message', async t => {
+  const {peers:[peer], statuses, tick} = await harness(t);
+  peer.emit('open');
+  const conn = new Channel();
+  peer.emit('connection', conn); conn.accept();
+  let elapsed = 0;
+  while (statuses.at(-1)[0] === 'linked' && elapsed < 15000) { await tick(500); elapsed += 500; }
+  assert.equal(statuses.at(-1)[0], 'lost');
+  assert.ok(elapsed <= 10000, `fallback took ${elapsed} ms`);
 });
 
 test('a new-room collision changes code, a resumed room retries the same id for 15 seconds', async t => {
@@ -96,7 +108,7 @@ test('phone wakes and retries automatically without starting parallel peers or r
   assert.deepEqual(peer.channel.sent, [{type:'ping'}]);
   peer.channel.close();
   assert.equal(statuses.at(-1)[0], 'reconnecting');
-  await tick(500);
+  await tick(1); // A live channel that drops is retried immediately, not after a backoff.
   assert.equal(peers.length, 2);
   peers[1].emit('error', {type:'network'});
   assert.match(statuses.at(-1)[1], /Keep playing on the iPad/);

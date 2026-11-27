@@ -357,12 +357,12 @@
       case 'call':
         heading = 'The Banker is calling…';
         content = scene('<div class="phone" aria-hidden="true">☎︎</div>' + (linked ? '<p>Waiting for the host to answer…</p>' : ''),
-          linked ? [] : [['Answer', () => transition(G.answerCall(game)), true]]);
+          linked ? [] : [['Answer', () => transition(G.answerCall(game)), true]], 'call-scene answer-scene');
         break;
       case 'line':
         heading = 'The Banker is on the line…';
         content = scene('<div class="on-line-icon" aria-hidden="true">☎︎</div>' + (linked ? '<p>Host has the Banker on the line…</p>' : ''),
-          linked ? [] : [['Hang up', () => transition(G.hangUp(game)), true]]);
+          linked ? [] : [['Hang up', () => transition(G.hangUp(game)), true]], 'call-scene hangup-scene');
         break;
       case 'offer':
         heading = 'The Banker offers';

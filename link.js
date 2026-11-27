@@ -85,6 +85,9 @@ const DONDLink = (() => {
   }
 
   // One live channel. Only a fully opened incoming phone can displace the current one.
+  // Link timing. The stage pings every 2 s and treats 8 s of silence as a lost phone, so it falls
+  // back to on-stage buttons within about 10 s. A phone that loses the stage retries straight away.
+  const PING_MS = 2000, SILENT_MS = 8000, CONNECT_MS = 8000, PHONE_RETRY_MAX = 3000, STAGE_RETRY_MAX = 5000;
   function transport({role, code, fresh = false, onCode = () => {}, onStatus, getPeer = loadPeer}) {
     const stage = role === 'stage';
     let peer, channel, retryTimer, watchdog, heartbeat;
@@ -111,11 +114,11 @@ const DONDLink = (() => {
       peer?.destroy();
       peer = null;
     }
-    function retry(detail = linkError) {
+    function retry(detail = linkError, now = false) {
       reset();
       onStatus(stage ? 'lost' : 'reconnecting', detail);
-      retryTimer = setTimeout(start, backoff);
-      backoff = Math.min(5000, backoff * 2);
+      retryTimer = setTimeout(start, now ? 0 : backoff);
+      if (!now) backoff = Math.min(stage ? STAGE_RETRY_MAX : PHONE_RETRY_MAX, backoff * 2);
     }
     function attach(conn, token) {
       const current = () => !stopped && generation === token;
@@ -124,7 +127,7 @@ const DONDLink = (() => {
         if (!current() || active()) return;
         conn.close();
         if (stage && !connected) onStatus('lost', linkError);
-      }, 15000);
+      }, CONNECT_MS);
       conn.on('open', () => {
         clearTimeout(handshake);
         if (!current()) { conn.close(); return; }
@@ -136,16 +139,17 @@ const DONDLink = (() => {
         backoff = 500;
         lastSeen = Date.now();
         heartbeat = setInterval(() => {
-          if (Date.now() - lastSeen >= 15000) { lost(); return; }
+          if (Date.now() - lastSeen >= SILENT_MS) { lost(); return; }
           conn.send({type:'ping'});
-        }, 5000);
+        }, PING_MS);
         onStatus('linked');
         opened();
       });
       function lost() {
         clearTimeout(handshake);
         if (!current()) return;
-        if (!stage) { retry(); return; }
+        // A phone that had a live channel retries at once (the stage may just have reloaded).
+        if (!stage) { const wasLive = active(); if (wasLive) backoff = 500; retry(linkError, wasLive); return; }
         if (active()) { dropChannel(); onStatus('lost', linkError); }
         else if (!connected) onStatus('lost', linkError);
       }
@@ -169,7 +173,7 @@ const DONDLink = (() => {
       reset();
       const token = generation;
       connectingSince = Date.now();
-      watchdog = setTimeout(retry, 15000);
+      watchdog = setTimeout(retry, CONNECT_MS);
       try {
         const Peer = await getPeer();
         if (generation !== token) return;
@@ -210,7 +214,7 @@ const DONDLink = (() => {
       if (stopped || document.hidden || stage) return;
       // pageshow also fires on initial load while PeerJS is still obtaining a random id.
       if (connectingSince !== null && Date.now() - connectingSince < 15000) return;
-      if (connected && Date.now() - lastSeen < 15000) channel.send({type:'ping'});
+      if (connected && Date.now() - lastSeen < SILENT_MS) channel.send({type:'ping'});
       else {
         onStatus('reconnecting');
         start();

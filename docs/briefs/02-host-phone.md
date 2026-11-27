@@ -121,7 +121,7 @@ that with an explicit three-step call. **The call phase must no longer auto-adva
 - If the stage refreshes, it re-registers the same room code and the phone reconnects. If the broker still holds the old
   id briefly (PeerJS `unavailable-id`), retry for about 15 s before giving up and showing a clear error with a "New code"
   option.
-- A heartbeat (ping every ~5 s, drop after ~15 s silence) keeps both pills honest.
+- A heartbeat (ping every 2 s, drop after 8 s silence) keeps both pills honest, so the stage falls back to its own buttons within about 10 s. A phone whose live link drops retries immediately (the stage may only have reloaded), then backs off up to 3 s.
 
 ### Transport
 - Use **WebRTC data channels via PeerJS** with its free public cloud broker (`0.peerjs.com`, PeerJS's defaults including
@@ -165,7 +165,7 @@ that with an explicit three-step call. **The call phase must no longer auto-adva
    phone while the stage says the Banker is on the line → Hang up reveals the offer on the stage → DEAL/NO DEAL on the phone
    plays on the stage → final Keep/Swap on the phone. Case picks work from both the phone grid and the iPad.
 7. While the phone is linked, the stage hides the call/offer/swap buttons. When the phone drops, they come back within
-   ~15 s and the stage can finish the game alone.
+   ~10 s (always under 15 s) and the stage can finish the game alone.
 8. Reconnect: locking or refreshing the phone mid-game (including during `line`) reconnects it onto the correct screen with
    no state change on the stage. Refreshing the stage keeps the same room code and the phone reconnects.
 9. Failure: with the network blocked or PeerJS failing, a clear error shows and the stage stays playable.

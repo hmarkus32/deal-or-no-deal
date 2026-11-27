@@ -226,7 +226,7 @@ body.banker-call { background:radial-gradient(ellipse at 70% 28%,#a32432,#550e20
 .banker-call .play-panel { background:radial-gradient(ellipse at 50% 25%,#732132,#2c1420 80%); }
 .banker-call::after {
   content:""; position:fixed; inset:0; z-index:10; pointer-events:none;
-  box-shadow:inset 0 0 0 clamp(4px,.65vmin,9px) #ff4251,inset 0 0 3vmin #ff233dcc;
+  box-shadow:inset 0 0 0 clamp(10px,1.6vmin,24px) #ff4251,inset 0 0 6vmin 1vmin #ff233dcc;
   animation:banker-pulse .45s ease-in-out infinite;
 }
 @keyframes banker-pulse { 0%,100% { opacity:.52; } 50% { opacity:1; } }
@@ -270,3 +270,14 @@ body.banker-call { background:radial-gradient(ellipse at 70% 28%,#a32432,#550e20
 #phone-controls .hang-up { background:#a52338; color:white; }
 #phone-controls .call-timer { font-variant-numeric:tabular-nums; font-size:24px; }
 #phone-controls .phone { font-size:clamp(80px,24vmin,150px); }
+
+/* Single-device banker call: Answer and Hang up are as big as DEAL / NO DEAL. */
+.call-scene .actions { width:100%; }
+.call-scene button { width:min(100%,720px); min-height:16vh; font-size:clamp(30px,5.5vmin,84px); font-weight:850; border-radius:22px; padding:.3em; color:#fff; }
+.answer-scene button { background:#197047; border-color:#5fd99a; }
+.hangup-scene button { background:#a52338; border-color:#ff8b98; }
+@media (max-width:650px) {
+  .call-scene button { min-height:clamp(72px,12vh,110px); font-size:clamp(28px,8vw,40px); }
+}
+/* Host phone: DEAL / NO DEAL fill most of the screen so they are easy to hold up. */
+#phone-controls[data-phase="offer"] button { min-height:min(35dvh,calc((100dvh - 240px) / 2)); }
