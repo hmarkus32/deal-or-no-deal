@@ -36,7 +36,7 @@ Replace the placeholder `index.html` with a complete, polished, single-contestan
 ## Banker offer formula (documented in code and unit tested)
 `offer = roundNice( EV(remaining) × factor(round) × jitter )`
 - `EV` is the mean of all amounts not yet revealed, **including the player's own case**.
-- `factor(round)` rises across the 9 offers, roughly `[0.30, 0.38, 0.47, 0.56, 0.66, 0.75, 0.84, 0.92, 0.98]`. You may tune it, but keep it monotonic non-decreasing, starting in 0.25–0.40 and ending in 0.90–1.00.
+- `factor(round)` rises across the 9 offers, roughly `[0.48, 0.56, 0.64, 0.72, 0.80, 0.88, 0.95, 1.02, 1.08]` (tuned up from `[0.30 … 0.98]` after the first family test so offers feel tempting). Keep it monotonic non-decreasing, starting in 0.40–0.55 and ending in 1.00–1.15. Late factors above 1 let the banker overpay, but the offer is always clamped to the largest amount still in play.
 - `jitter` is a uniform random value in **[0.95, 1.05]**. The RNG must be injectable so tests are deterministic.
 - `roundNice` rounds to nice numbers appropriate to the scale, so the offer looks like a real banker number:
   - under $1, round to the cent;
@@ -56,12 +56,22 @@ Replace the placeholder `index.html` with a complete, polished, single-contestan
 - **26 amount fields** in a grid. They accept input like `0.25`, `$1,000`, or `100` and parse to numbers.
 - **Validation**: there must be exactly **26** values, all **positive**, all **unique**, and all finite numbers with at most 2 decimals. Show clear inline errors and block saving or starting until they're fixed. On save, amounts are **sorted ascending automatically**.
 - **Presets** are stored in localStorage:
-  - **Built-in "Family $100" (DEFAULT for this first game)**, which uses exactly:
-    `0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 70, 75, 80, 100`
-  - **Built-in "Classic TV"**, the real show's values:
-    `0.01, 1, 5, 10, 25, 50, 75, 100, 200, 300, 400, 500, 750, 1000, 5000, 10000, 25000, 50000, 75000, 100000, 200000, 300000, 400000, 500000, 750000, 1000000`
+  - Six **built-in presets**, defined in `game-logic.js` as `DOND.PRESETS` and listed in this order in the picker. Picking one loads it right away, with no typing:
+    1. **"Family $100" (DEFAULT)**. Tuned after the first family test so $20 tops the low column, for better odds:
+       `0.01, 0.25, 0.50, 1, 2, 3, 5, 7, 10, 12, 15, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 85, 100`
+    2. **"Family $100 (Classic)"**, the original first-night default:
+       `0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 70, 75, 80, 100`
+    3. **"Big Spender $100"** (very generous, top-heavy):
+       `0.01, 1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 72, 75, 78, 80, 85, 88, 90, 94, 97, 100`
+    4. **"Kids $20"**:
+       `0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 1, 1.50, 2, 2.50, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20`
+    5. **"High Roller $500"**:
+       `0.01, 1, 5, 10, 20, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 490, 500`
+    6. **"Classic TV"**, the real show's values:
+       `0.01, 1, 5, 10, 25, 50, 75, 100, 200, 300, 400, 500, 750, 1000, 5000, 10000, 25000, 50000, 75000, 100000, 200000, 300000, 400000, 500000, 750000, 1000000`
+  - A browser whose saved setup is exactly the old default (now "Family $100 (Classic)") is moved to the new default once, on first load after the change (marker key `dond-default-board-v2`). Choosing Classic again afterwards sticks.
   - **Save current as preset** (named), **Load preset**, and **Delete** for user presets (with confirm). Built-ins can't be deleted.
-  - **Reset to defaults** (with confirm) restores the Family $100 amounts and the default title.
+  - **Reset to defaults** (with confirm) restores the default Family $100 amounts and the default title.
 - The last-used amounts and title persist in localStorage and are used for the next game.
 - Changing amounts mid-game is not allowed. Either Setup is disabled during a game, or it asks to end the current game first.
 
@@ -95,7 +105,8 @@ Replace the placeholder `index.html` with a complete, polished, single-contestan
    - Offer formula, across many random states and rounds:
      - the offer is within [min remaining, max remaining];
      - with jitter fixed at 1, it equals `roundNice(EV × factor)`;
-     - the factor is monotonic non-decreasing, starts in [0.25, 0.40], and ends in [0.90, 1.00];
+     - the factor is monotonic non-decreasing, starts in [0.40, 0.55], and ends in [1.00, 1.15];
+     - the offer never exceeds the largest remaining amount, and average offers rise round over round;
      - offers on the Family $100 board are rounded sensibly.
    - Swap logic: swapping exchanges the player's case with the last remaining case, keeping gives the original, and the "what you would have had" value is correct.
    - Amount validation rejects:
@@ -105,9 +116,9 @@ Replace the placeholder `index.html` with a complete, polished, single-contestan
      - NaN or blank entries;
      - more than 2 decimals.
 
-     It accepts both presets, and it sorts ascending.
+     It accepts every built-in preset, and it sorts ascending.
    - `formatMoney` gives these results: 0.01→`$0.01`, 0.1→`$0.10`, 0.25→`$0.25`, 1→`$1`, 2.5→`$2.50`, 100→`$100`, 1000000→`$1,000,000`.
-   - The Family $100 preset equals the exact 26 values listed above and is the default on a fresh load, with empty localStorage.
+   - Each built-in preset equals its exact 26 values listed above, and Family $100 is the default on a fresh load, with empty localStorage.
 2. **There is no scrolling in any game state** at **390×844, 1024×768, 1366×768, and 1920×1080**. The game states are title, pick case, opening rounds (including the reveal overlay), banker call, offer, final swap, and final reveal/result. In each, `document.documentElement.scrollHeight <= document.documentElement.clientHeight` and `scrollWidth <= clientWidth`, and no content is clipped. The Setup screen should also fit. If 26 inputs truly can't fit on the iPhone, the Setup screen *alone* may scroll internally, inside its own panel, never the page. In the PR, state how you checked each viewport (DevTools device mode is fine).
 3. All 26 cases are tappable at every viewport (target ≥ 44×44 CSS px on iPhone; case grid reflows, e.g. 7/6/7/6 rows on wide screens, more rows on portrait).
 4. The full game can be played to completion in each path (deal at round 1, deal mid-game, no deal + keep, no deal + swap) without errors in the console.

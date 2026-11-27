@@ -13,8 +13,9 @@ function seeded(seed) {
 const neutral = () => 0.5;
 
 test('a fresh board defaults to exactly Family $100 and settings are independent', () => {
-  const expected = [.01,.05,.10,.25,.50,.75,1,2,3,4,5,6,8,10,12,15,20,25,30,40,50,60,70,75,80,100];
+  const expected = [.01,.25,.50,1,2,3,5,7,10,12,15,18,20,25,30,35,40,45,50,55,60,65,70,75,85,100];
   assert.deepEqual(G.FAMILY, expected);
+  assert.equal(G.FAMILY[12], 20, '$20 tops the low column');
   const settings = G.defaultSettings();
   assert.deepEqual(settings, {title:'Deal or No Deal', amounts:expected, muted:false});
   settings.amounts.reverse();
@@ -43,12 +44,33 @@ test('amounts accept both exact presets and sort currency inputs without mutatin
   }
 });
 
+test('built-in presets are six named, valid, sorted boards with Family $100 first as the default', () => {
+  assert.deepEqual(G.PRESETS.map(p => p.name), ['Family $100', 'Family $100 (Classic)', 'Big Spender $100',
+    'Kids $20', 'High Roller $500', 'Classic TV']);
+  assert.equal(G.PRESETS[0].amounts, G.FAMILY);
+  assert.deepEqual(G.defaultSettings().amounts, G.PRESETS[0].amounts);
+  assert.deepEqual(G.FAMILY_CLASSIC, [.01,.05,.10,.25,.50,.75,1,2,3,4,5,6,8,10,12,15,20,25,30,40,50,60,70,75,80,100]);
+  assert.deepEqual(G.BIG_SPENDER, [.01,1,5,10,15,20,25,30,35,40,45,50,55,60,65,70,72,75,78,80,85,88,90,94,97,100]);
+  assert.deepEqual(G.KIDS, [.01,.05,.10,.25,.50,.75,1,1.5,2,2.5,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,20]);
+  assert.deepEqual(G.HIGH_ROLLER, [.01,1,5,10,20,25,50,75,100,125,150,175,200,225,250,275,300,325,350,375,400,425,450,475,490,500]);
+  assert.equal(G.PRESETS[5].amounts, G.CLASSIC);
+  const tops = {'Family $100':100, 'Family $100 (Classic)':100, 'Big Spender $100':100, 'Kids $20':20, 'High Roller $500':500, 'Classic TV':1000000};
+  for (const {name, amounts} of G.PRESETS) {
+    assert.ok(Object.isFrozen(amounts), name);
+    assert.deepEqual(G.validateAmounts([...amounts].reverse().map(G.formatMoney)), {amounts:[...amounts]}, name);
+    assert.equal(amounts[0], .01, name);
+    assert.equal(amounts[25], tops[name], name);
+    const game = G.newGame({title:'t', amounts}, seeded(3));
+    assert.deepEqual([...game.cases].sort((a,b) => a-b), [...amounts], name);
+  }
+});
+
 test('amounts reject wrong counts, blanks, duplicates, nonpositive, nonfinite and overprecise entries', () => {
   for (const n of [25, 27]) assert.ok(G.validateAmounts(Array(n).fill(1)).error);
   for (const value of [0, -1, '  ', NaN, Infinity, '.255', '7.000', '1,2', '$2.00', undefined]) {
     const fields = [...G.FAMILY];
     fields[2] = value;
-    assert.equal(G.validateAmounts(fields).index, value === '$2.00' ? 7 : 2);
+    assert.equal(G.validateAmounts(fields).index, value === '$2.00' ? G.FAMILY.indexOf(2) : 2);
     assert.ok(G.validateAmounts(fields).error);
     assert.throws(() => G.newGame({amounts:fields}), RangeError);
   }
@@ -70,8 +92,8 @@ test('roundNice uses board-appropriate increments at every scale', () => {
 
 test('offers match clamped EV × round factor × jitter over 900 random remaining boards', () => {
   assert.equal(G.FACTORS.length, 9);
-  assert.ok(G.FACTORS[0] >= .25 && G.FACTORS[0] <= .40);
-  assert.ok(G.FACTORS[8] >= .90 && G.FACTORS[8] <= 1);
+  assert.ok(G.FACTORS[0] >= .40 && G.FACTORS[0] <= .55);
+  assert.ok(G.FACTORS[8] >= 1 && G.FACTORS[8] <= 1.15);
   const rng = seeded(713);
   for (let round = 1; round <= 9; round++) {
     if (round > 1) assert.ok(G.FACTORS[round-1] >= G.FACTORS[round-2]);
@@ -88,6 +110,29 @@ test('offers match clamped EV × round factor × jitter over 900 random remainin
   }
   assert.equal(G.bankerOffer([75,80], 1, neutral), 75);
   assert.equal(G.bankerOffer([99,100], 9, () => .99999), 100);
+});
+
+test('Family $100 offers rise round over round on average and never exceed the top remaining case', () => {
+  const rng = seeded(2026);
+  const sums = Array(9).fill(0);
+  const games = 2000;
+  for (let g = 0; g < games; g++) {
+    const left = G.shuffle(G.FAMILY, rng);
+    let pool = left.slice();
+    for (let round = 1; round <= 9; round++) {
+      pool = pool.slice(G.SCHEDULE[round-1]);
+      const offer = G.bankerOffer(pool, round, rng);
+      assert.ok(offer <= Math.max(...pool), `round ${round} offer ${offer} > max ${Math.max(...pool)}`);
+      assert.ok(offer >= Math.min(...pool));
+      sums[round-1] += offer / (pool.reduce((a, b) => a + b, 0) / pool.length);
+    }
+  }
+  const avgRatio = sums.map(s => s / games);
+  for (let i = 1; i < 9; i++) assert.ok(avgRatio[i] > avgRatio[i-1], `ratio fell at round ${i+1}: ${avgRatio}`);
+  // A late factor above 1 cannot push the offer past the top case.
+  assert.equal(G.bankerOffer([0.01, 100], 9, () => .99999), 57);
+  assert.equal(G.bankerOffer([90, 100], 9, () => .99999), 100);
+  assert.equal(G.bankerOffer([80, 100], 8, neutral), 92);
 });
 
 function playUntilOffer(game) {

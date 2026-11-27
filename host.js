@@ -17,10 +17,20 @@
     } catch { /* Keep this session playable if the browser blocks storage. */ }
   }
   let settings = read(keys.settings, G.defaultSettings());
-  if (G.validateAmounts(settings.amounts).error || typeof settings.title !== 'string') settings = G.defaultSettings();
+  if (!settings || G.validateAmounts(settings.amounts).error || typeof settings.title !== 'string') settings = G.defaultSettings();
+  // One-time upgrade: a browser that saved the old default board moves to the new default.
+  // Picking "Family $100 (Classic)" afterwards sticks, because the marker is only written once.
+  const upgradeKey = 'dond-default-board-v2';
+  if (!read(upgradeKey, false)) {
+    if (settings.amounts.length === 26 && settings.amounts.every((n, i) => n === G.FAMILY_CLASSIC[i])) {
+      settings = {...settings, amounts: [...G.FAMILY]};
+      write(keys.settings, settings);
+    }
+    write(upgradeKey, true);
+  }
   let game = read(keys.state, null);
   let presets = read(keys.presets, []);
-  const builtins = [{name:'Family $100', amounts:G.FAMILY}, {name:'Classic TV', amounts:G.CLASSIC}];
+  const builtins = G.PRESETS;
   let setupOpen = false;
   let timer;
   let audio;
@@ -459,7 +469,15 @@
   }
   function presetOptions(selected) {
     const list = $('preset-list');
-    list.replaceChildren(...allPresets().map((p, i) => new Option(p.name, String(i))));
+    const label = (p, i) => p.name + ' · ' + money(p.amounts[0]) + '–' + money(p.amounts[25]) + (i === 0 ? ' (default)' : '');
+    const option = (p, i) => new Option(label(p, i), String(i));
+    const group = (name, items, offset) => {
+      const g = document.createElement('optgroup');
+      g.label = name;
+      g.append(...items.map((p, i) => option(p, i + offset)));
+      return g;
+    };
+    list.replaceChildren(group('Built-in boards', builtins, 0), ...(presets.length ? [group('Your saved boards', presets, builtins.length)] : []));
     list.value = String(Math.max(0, selected));
     $('delete-preset').disabled = Number(list.value) < builtins.length;
   }
@@ -483,7 +501,11 @@
     transition(null);
   };
   $('cancel-setup').onclick = () => { setupOpen = false; render(); };
-  $('preset-list').onchange = () => { $('delete-preset').disabled = Number($('preset-list').value) < builtins.length; };
+  // Picking a board loads it straight away; Save setup keeps it for the next game.
+  $('preset-list').onchange = () => {
+    $('delete-preset').disabled = Number($('preset-list').value) < builtins.length;
+    fillAmounts(allPresets()[Number($('preset-list').value)].amounts);
+  };
   $('load-preset').onclick = () => fillAmounts(allPresets()[Number($('preset-list').value)].amounts);
   $('save-preset').onclick = () => {
     const next = draft();
