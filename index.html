@@ -51,12 +51,14 @@
     <section id="setup-screen" class="screen" hidden>
       <div class="setup-heading"><h2 tabindex="-1">Game setup</h2><button id="cancel-setup">Cancel</button></div>
       <form id="settings-form" novalidate>
-        <div class="setup-controls">
-          <label>Game title<input id="title-input" required maxlength="60" autocomplete="off"></label>
-          <label>Board preset<select id="preset-list"></select></label>
-          <div class="preset-actions"><button type="button" id="load-preset">Load preset</button><button type="button" id="delete-preset">Delete</button></div>
+        <div class="setup-fields">
+          <div class="setup-controls">
+            <label>Game title<input id="title-input" required maxlength="60" autocomplete="off"></label>
+            <label>Board preset<select id="preset-list"></select></label>
+            <div class="preset-actions"><button type="button" id="load-preset">Load preset</button><button type="button" id="delete-preset">Delete</button></div>
+          </div>
+          <fieldset><legend>Case amounts</legend><div id="amount-fields"></div></fieldset>
         </div>
-        <fieldset><legend>Case amounts</legend><div id="amount-fields"></div></fieldset>
         <div id="setup-message" role="status"></div>
         <div class="setup-bottom"><button type="button" id="reset-defaults">Reset defaults</button><button type="button" id="save-preset">Save as preset</button><button type="submit" class="gold" id="save-settings">Save setup</button></div>
       </form>

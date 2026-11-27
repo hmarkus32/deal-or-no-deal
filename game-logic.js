@@ -123,13 +123,19 @@ const DOND = (() => {
       other, otherAmount: game.cases[other - 1], good: winnings >= game.amounts[13]}};
   }
 
+  function revealOtherCase(game) {
+    if (game.phase !== 'finalReveal' || game.result.type === 'deal') return game;
+    return {...game, phase: 'otherReveal'};
+  }
+
   function showResult(game) {
-    return game.phase === 'finalReveal' ? {...game, phase: 'result'} : game;
+    const dealRevealed = game.phase === 'finalReveal' && game.result.type === 'deal';
+    return dealRevealed || game.phase === 'otherReveal' ? {...game, phase: 'result'} : game;
   }
 
   return {TITLE, FAMILY, CLASSIC, SCHEDULE, FACTORS, defaultSettings, validateAmounts, formatMoney,
     shuffle, roundNice, bankerOffer, newGame, remainingNumbers, opensLeft, selectCase, finishReveal,
-    showOffer, decideOffer, finishSwap, showResult};
+    showOffer, decideOffer, finishSwap, revealOtherCase, showResult};
 })();
 
 if (typeof window !== 'undefined') window.DOND = DOND;

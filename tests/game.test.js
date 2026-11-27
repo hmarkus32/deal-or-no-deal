@@ -130,7 +130,13 @@ test('nine rounds open 24 distinct cases and keep or swap pays the correct final
     assert.equal(final.result.otherAmount,swap ? .01 : 100);
     assert.equal(final.result.winnings,swap ? 100 : .01);
     assert.equal(final.result.good,swap);
-    assert.equal(G.showResult(final).phase,'result');
+    assert.equal(G.showResult(final),final);
+    const other = G.revealOtherCase(final);
+    assert.equal(other.phase,'otherReveal');
+    assert.equal(G.revealOtherCase(other),other);
+    const completed = G.showResult(JSON.parse(JSON.stringify(other)));
+    assert.equal(completed.phase,'result');
+    assert.deepEqual(completed.result,final.result);
   }
 });
 
@@ -141,6 +147,8 @@ test('early and mid-game deals compare the fixed offer with the contestant’s o
       while (game.round < round) game = G.decideOffer(playUntilOffer(game),false);
       const offer = playUntilOffer(game);
       const final = G.decideOffer(offer,true);
+      assert.equal(G.revealOtherCase(final),final);
+      assert.equal(G.showResult(final).phase,'result');
       assert.equal(final.result.winnings,offer.offers.at(-1).amount);
       assert.equal(final.result.caseValue,game.cases[chosen-1]);
       assert.equal(final.result.good,chosen === 1);

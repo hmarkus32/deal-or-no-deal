@@ -143,7 +143,8 @@
       heading.innerHTML = '<span class="logo-line">DEAL</span> <span class="logo-or">OR</span> <span class="logo-line">NO DEAL</span>';
     } else heading.textContent = settings.title;
     const preset = allPresets().find(p => sameBoard(p.amounts, settings.amounts));
-    $('board-name').textContent = (preset?.name || 'Custom') + ' board';
+    const name = preset?.name || 'Custom';
+    $('board-name').textContent = /board$/i.test(name) ? name : name + ' board';
     $('top-prize').textContent = money(settings.amounts[25]);
   }
   function render() {
@@ -204,8 +205,18 @@
     if (actions.length) panel.append(controls);
     return panel;
   }
-  const bigCase = n => '<div class="big-case" aria-label="Case ' + n + '">' + caseFace(n) + '</div>';
+  const bigCase = (n, gold = true) => '<div class="big-case' + (gold ? ' gold-case' : '') +
+    '" aria-label="Case ' + n + '">' + caseFace(n) + '</div>';
   const amount = value => '<div class="amount">' + money(value) + '</div>';
+
+  function swapChoice(number, swap) {
+    const choice = document.createElement('div');
+    choice.className = 'swap-choice';
+    choice.innerHTML = '<p>' + (swap ? 'Last case' : 'Your case') + '</p>' + bigCase(number, !swap);
+    choice.append(button((swap ? 'Swap for #' : 'Keep #') + number,
+      () => transition(G.finishSwap(game, swap)), !swap));
+    return choice;
+  }
 
   function renderGame() {
     const {phase, round, chosen, result} = game;
@@ -238,32 +249,41 @@
         heading = 'The Banker offers';
         content = scene(amount(game.offers.at(-1).amount) + '<p>Deal or no deal?</p>', [
           ['DEAL', () => transition(G.decideOffer(game, true)), true],
-          ['NO DEAL', () => transition(G.decideOffer(game, false))]]);
+          ['NO DEAL', () => transition(G.decideOffer(game, false))]], 'offer');
         break;
       case 'swap': {
         label = 'The final two';
         heading = 'Keep or swap?';
         const other = G.remainingNumbers(game).find(n => n !== chosen);
-        content = scene('<p>Keep your case <b>#' + chosen + '</b> or swap for case <b>#' + other + '</b>?</p>', [
-          ['Keep #' + chosen, () => transition(G.finishSwap(game, false)), true],
-          ['Swap for #' + other, () => transition(G.finishSwap(game, true))]]);
+        content = scene('', [], 'swap-options');
+        content.append(swapChoice(chosen, false), swapChoice(other, true));
         break;
       }
       case 'finalReveal':
         label = result.type === 'deal' ? 'Deal accepted' : 'Final reveal';
         heading = 'Inside your case #' + chosen;
-        content = scene(bigCase(chosen) + amount(game.cases[chosen - 1]), [
-          ['Show result', () => transition(G.showResult(game)), true]], 'revealing');
+        content = scene(bigCase(chosen, result.type !== 'swap') + amount(game.cases[chosen - 1]), [result.type === 'deal'
+          ? ['Show result', () => transition(G.showResult(game)), true]
+          : ['Open case #' + result.other, () => transition(G.revealOtherCase(game)), true]], 'revealing');
+        break;
+      case 'otherReveal':
+        label = 'What you could have won';
+        heading = 'Inside the other case #' + result.other;
+        content = scene(bigCase(result.other, result.type === 'swap') + amount(result.otherAmount),
+          [['Show result', () => transition(G.showResult(game)), true]], 'revealing');
         break;
       case 'result': {
         label = 'Game complete';
-        heading = 'You won';
+        heading = result.good ? 'You won!' : result.type === 'deal' ? 'Deal done' : 'Final result';
         let comparison;
         if (result.type === 'deal') {
           comparison = result.difference < 0 ? 'The Banker beat you by ' : 'You beat the Banker by ';
           comparison = result.difference === 0 ? 'Your deal matched your case.' : comparison + money(Math.abs(result.difference)) + '.';
           comparison += ' Your case held ' + money(result.caseValue) + '.';
-        } else comparison = 'The other case, #' + result.other + ', held ' + money(result.otherAmount) + '.';
+        } else {
+          const choice = result.type === 'keep' ? 'You kept #' : 'You swapped for #';
+          comparison = choice + chosen + '. The other case, #' + result.other + ', held ' + money(result.otherAmount) + '.';
+        }
         content = scene(amount(result.winnings) + '<p>' + comparison + '</p>', [
           ['Play Again', restart, true], ['New Game', newGame], ['Setup', openSetup]]);
         if (result.good && !reducedMotion.matches) celebrate();

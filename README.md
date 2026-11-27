@@ -9,7 +9,11 @@ A digital **Deal or No Deal** party game for the Markus family. It's one static 
 - Code is written by ChatGPT Codex on `codex/<topic>` branches as pull requests, following `AGENTS.md`, `docs/CONTEXT.md`, and the briefs in `docs/briefs/`. PRs are reviewed and merged only after Hunter's OK.
 
 ## Tests
-```
+
+From the repository root on Node.js 22 or newer, run
+
+```sh
 node --test
 ```
-No installs needed. CI runs the same command on every push and PR. The workflow source is `ci/ci.yml`, installed at `.github/workflows/ci.yml`.
+
+Node discovers the suite in `tests/` automatically. CI runs the same command on every push and PR, with no package installs. The workflow source is `ci/ci.yml`, installed at `.github/workflows/ci.yml`.
