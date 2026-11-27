@@ -24,6 +24,23 @@ test('a saved v1 call waits for Answer and Hang up, preserving its existing offe
   assert.equal(G.hangUp(offer), offer);
 });
 
+test('phoneUrl builds a host-phone link from the current page location', () => {
+  assert.equal(
+    L.phoneUrl('https://hmarkus32.github.io/deal-or-no-deal/', 'k7qx'),
+    'https://hmarkus32.github.io/deal-or-no-deal/phone.html?room=K7QX'
+  );
+  assert.equal(
+    L.phoneUrl('https://hmarkus32.github.io/deal-or-no-deal/index.html', 'K7QX'),
+    'https://hmarkus32.github.io/deal-or-no-deal/phone.html?room=K7QX'
+  );
+  assert.equal(
+    L.phoneUrl('https://raw.githack.com/hmarkus32/deal-or-no-deal/codex/phone-qr/index.html', 'ab23'),
+    'https://raw.githack.com/hmarkus32/deal-or-no-deal/codex/phone-qr/phone.html?room=AB23'
+  );
+  assert.equal(L.phoneUrl('https://example.com/game/', 'O234'), null);
+  assert.equal(L.phoneUrl('https://example.com/game/', null), null);
+});
+
 test('four readable characters map to a normalized stage peer id', () => {
   for (let i = 0; i < 200; i++) {
     const code = L.roomCode();
